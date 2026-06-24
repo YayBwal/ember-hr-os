@@ -111,6 +111,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
           {children ?? <Outlet />}
         </main>
       </div>
+      <VoiceAssistant />
     </div>
   );
 }
