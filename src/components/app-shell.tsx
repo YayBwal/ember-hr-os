@@ -39,6 +39,7 @@ const NAV = [
   { to: "/operations", label: "Operations", icon: Workflow },
   { to: "/delivery", label: "Delivery", icon: AudioLines },
   { to: "/financial", label: "Financial", icon: Wallet },
+  { to: "/organization", label: "Organization", icon: Building2 },
 ] as const;
 
 const ROLES = ["Recruiter", "HR", "Finance", "Admin"] as const;
