@@ -573,10 +573,8 @@ function ApproveDialog({ candidate, onClose }: { candidate: Candidate | null; on
   const [position, setPosition] = useState("");
   const [base, setBase] = useState<string>("1500000");
 
-  useState(() => {
-    if (candidate) setPosition(candidate.role_applied);
-    return undefined;
-  });
+  // position prefilled from role_applied via fallback in submit; user can edit
+
 
   const submit = useMutation({
     mutationFn: () =>
