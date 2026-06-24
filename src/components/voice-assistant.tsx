@@ -120,9 +120,10 @@ export function VoiceAssistant() {
         historyRef.current.push({ role: "user", content: text });
         setStatus("thinking");
         try {
-          const { reply } = await chat({ data: { messages: historyRef.current } });
+          const { reply, actions } = await chat({ data: { messages: historyRef.current } });
           historyRef.current.push({ role: "assistant", content: reply });
           setLines((p) => [...p, { id: crypto.randomUUID(), who: "ai", text: reply }]);
+          runActions(actions as Action[] | undefined);
           setStatus("speaking");
           await speak(reply);
         } catch (err: any) {
@@ -145,7 +146,7 @@ export function VoiceAssistant() {
       setStatus("error");
       setTimeout(() => setStatus("idle"), 1500);
     }
-  }, [chat, speak]);
+  }, [chat, speak, runActions, sttLang]);
 
   const start = useCallback(async () => {
     if (!supported) {
