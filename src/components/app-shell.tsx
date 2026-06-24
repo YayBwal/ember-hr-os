@@ -37,12 +37,11 @@ const NAV = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/pipeline", label: "Pipeline", icon: Users },
   { to: "/operations", label: "Operations", icon: Workflow },
-  { to: "/team-leader", label: "Team Leader", icon: Crown },
   { to: "/financial", label: "Financial", icon: Wallet },
   { to: "/organization", label: "Organization", icon: Building2 },
 ] as const;
 
-const ROLES = ["Recruiter", "HR", "Finance", "Admin"] as const;
+const ROLES = ["Recruiter", "HR", "Finance", "Admin", "Team Leader"] as const;
 type Role = (typeof ROLES)[number];
 
 export function AppShell({ children }: { children?: React.ReactNode }) {
