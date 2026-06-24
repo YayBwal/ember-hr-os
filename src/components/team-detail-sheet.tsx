@@ -62,7 +62,7 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
                 <TabsTrigger value="peer">Peer Reviews</TabsTrigger>
               </TabsList>
               <TabsContent value="members" className="mt-3"><MembersTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
-              <TabsContent value="tasks" className="mt-3"><TeamTasksTab team={team} allEmployees={allEmployees} /></TabsContent>
+              <TabsContent value="tasks" className="mt-3"><TeamTasksTab team={team} allEmployees={allEmployees} readOnly={isAdmin} /></TabsContent>
               <TabsContent value="reports" className="mt-3"><ReportsTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
               <TabsContent value="peer" className="mt-3"><PeerReviewTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
             </Tabs>
@@ -172,7 +172,7 @@ function MembersTab({ team, allEmployees, isAdmin }: { team: Team; allEmployees:
   );
 }
 
-function TeamTasksTab({ team, allEmployees }: { team: Team; allEmployees: Emp[] }) {
+function TeamTasksTab({ team, allEmployees, readOnly = false }: { team: Team; allEmployees: Emp[]; readOnly?: boolean }) {
   const qc = useQueryClient();
   const create = useServerFn(createTask);
   const update = useServerFn(updateTask);
@@ -205,6 +205,48 @@ function TeamTasksTab({ team, allEmployees }: { team: Team; allEmployees: Emp[] 
     onSuccess: () => { toast.success("Task created"); setTitle(""); setAssignee(""); qc.invalidateQueries({ queryKey: ["team_tasks", team.id] }); },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  // HR/Admin: read-only view of assignments + per-member counts for KPI auditing
+  if (readOnly) {
+    const counts = teamMembers.map((m) => {
+      const all = (tasks ?? []).filter((t) => t.assignee_employee_id === m.id);
+      const done = all.filter((t) => t.status === "done").length;
+      return { id: m.id, name: m.full_name, total: all.length, done };
+    });
+    const unassigned = (tasks ?? []).filter((t) => !t.assignee_employee_id).length;
+    return (
+      <div className="space-y-3">
+        <div className="rounded border border-dashed border-border bg-muted/30 p-2 text-[11px] text-muted-foreground">
+          Read-only · Team Leader assigns tasks. HR views assignments to audit KPI.
+        </div>
+        <div className="rounded-lg border border-border bg-card p-3">
+          <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Workload per member</div>
+          <div className="mt-2 space-y-1">
+            {counts.map((c) => (
+              <div key={c.id} className="flex items-center justify-between rounded border border-border px-2 py-1 text-xs">
+                <span>{c.name}</span>
+                <span className="font-mono text-muted-foreground">{c.done}/{c.total} done</span>
+              </div>
+            ))}
+            {counts.length === 0 && <div className="text-xs text-muted-foreground">No members.</div>}
+            {unassigned > 0 && <div className="text-[11px] text-amber-600">{unassigned} unassigned task(s)</div>}
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          {(tasks ?? []).map((t) => (
+            <div key={t.id} className="flex items-center justify-between rounded border border-border bg-card p-2 text-sm">
+              <div className="min-w-0">
+                <div className="truncate font-medium">{t.title}</div>
+                <div className="text-[10px] text-muted-foreground">{empName(t.assignee_employee_id)} · {t.due_date ?? "—"}</div>
+              </div>
+              <Badge variant="outline" className="text-[10px]">{t.status}</Badge>
+            </div>
+          ))}
+          {(tasks?.length ?? 0) === 0 && <div className="rounded border border-dashed border-border p-4 text-center text-xs text-muted-foreground">No tasks for this team.</div>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">

@@ -11,11 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, Upload, Save, Crown } from "lucide-react";
+import { Loader2, Send, Upload, Save, Crown, Plus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { initials } from "@/lib/format";
 import { useHasRole } from "@/hooks/use-user-roles";
 import { saveTeamReport, rateMember } from "@/lib/teams.functions";
+import { createTask, updateTask } from "@/lib/delivery.functions";
 
 export const Route = createFileRoute("/_authenticated/team-leader")({
   head: () => ({ meta: [{ title: "Team Leader Hub · Mandai" }] }),
@@ -183,12 +185,68 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
         </div>
       </div>
 
+      <TasksSection teamId={team.id} members={members ?? []} />
+
       {!locked && (
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="outline" size="sm" onClick={() => saveDraft.mutate()} disabled={saveDraft.isPending}><Save className="mr-1 h-4 w-4" /> Save draft</Button>
           <Button size="sm" onClick={() => submitReport.mutate()} disabled={submitReport.isPending}>{submitReport.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Send className="mr-1 h-4 w-4" /> Submit</>}</Button>
         </div>
       )}
+    </div>
+  );
+}
+
+function TasksSection({ teamId, members }: { teamId: string; members: Array<{ id: string; full_name: string; position: string | null }> }) {
+  const qc = useQueryClient();
+  const create = useServerFn(createTask);
+  const update = useServerFn(updateTask);
+  const [title, setTitle] = useState("");
+  const [assignee, setAssignee] = useState("");
+  const { data: tasks } = useQuery({
+    queryKey: ["tl_team_tasks", teamId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("tasks")
+        .select("id,title,status,assignee_employee_id,due_date")
+        .eq("team_id", teamId)
+        .order("created_at", { ascending: false });
+      return data ?? [];
+    },
+  });
+  const empName = (id: string | null) => members.find((m) => m.id === id)?.full_name ?? "Unassigned";
+  const add = useMutation({
+    mutationFn: () => create({ data: { title, teamId, assigneeEmployeeId: assignee || null, priority: "medium" } }),
+    onSuccess: () => { toast.success("Task assigned"); setTitle(""); setAssignee(""); qc.invalidateQueries({ queryKey: ["tl_team_tasks", teamId] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <div className="mt-5 rounded-lg border border-border bg-background p-3">
+      <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Assign tasks</div>
+      <div className="mt-2 flex items-end gap-2">
+        <div className="flex-1"><Label className="text-xs">Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What needs doing?" /></div>
+        <Select value={assignee} onValueChange={setAssignee}>
+          <SelectTrigger className="w-40 text-xs"><SelectValue placeholder="Assignee" /></SelectTrigger>
+          <SelectContent>{members.map((m) => <SelectItem key={m.id} value={m.id}>{m.full_name}</SelectItem>)}</SelectContent>
+        </Select>
+        <Button size="sm" onClick={() => add.mutate()} disabled={!title || !assignee || add.isPending}>{add.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}</Button>
+      </div>
+      <div className="mt-3 space-y-1.5">
+        {(tasks ?? []).map((t) => (
+          <div key={t.id} className="flex items-center justify-between rounded border border-border bg-card p-2 text-sm">
+            <div className="min-w-0">
+              <div className="truncate font-medium">{t.title}</div>
+              <div className="text-[10px] text-muted-foreground">{empName(t.assignee_employee_id)} · {t.due_date ?? "—"}</div>
+            </div>
+            <Select value={t.status as string} onValueChange={(v) => update({ data: { id: t.id, status: v as never } }).then(() => qc.invalidateQueries({ queryKey: ["tl_team_tasks", teamId] }))}>
+              <SelectTrigger className="h-7 w-32 text-xs"><SelectValue /></SelectTrigger>
+              <SelectContent>{["todo", "in_progress", "review", "done", "blocked", "cancelled"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+        ))}
+        {(tasks?.length ?? 0) === 0 && <div className="rounded border border-dashed border-border p-3 text-center text-xs text-muted-foreground">No tasks yet — assign the first one above.</div>}
+      </div>
     </div>
   );
 }
