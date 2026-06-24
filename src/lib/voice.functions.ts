@@ -109,14 +109,14 @@ When the user asks to open/go to a page (dashboard, pipeline, operations, delive
           } else {
             const { data: rows, error } = await (context as any).supabase
               .from("candidates")
-              .select("id,name,email,role_applied,status,ai_match_score")
-              .ilike("name", `%${q}%`)
+              .select("id,full_name,email,role_applied,status,ai_match_score")
+              .ilike("full_name", `%${q}%`)
               .limit(10);
             if (error) {
               result = { ok: false, error: error.message };
             } else {
               const list = rows ?? [];
-              actions.push({ type: "navigate", to: "/pipeline" });
+              actions.push({ type: "navigate", to: `/pipeline?q=${encodeURIComponent(q)}` });
               if (list.length > 0) actions.push({ type: "highlight_candidates", ids: list.map((r: any) => r.id) });
               result = { ok: true, count: list.length, candidates: list };
             }
