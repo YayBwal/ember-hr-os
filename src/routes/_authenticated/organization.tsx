@@ -195,6 +195,34 @@ function OrganizationPage() {
             </CardContent>
           </Card>
 
+          {/* Trainee salary default */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Trainee defaults</CardTitle>
+              <CardDescription>Default monthly salary (MMK) used when moving candidates into the Trainee stage. Override per person in Pipeline.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  type="number"
+                  placeholder={currentDefault ? String(currentDefault) : "500000"}
+                  value={traineeSalary}
+                  onChange={(e) => setTraineeSalary(e.target.value)}
+                  className="sm:max-w-xs"
+                />
+                <Button
+                  onClick={() => setDefaultTrainee.mutate(Number(traineeSalary))}
+                  disabled={!traineeSalary || setDefaultTrainee.isPending}
+                >
+                  Save default
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Current: {currentDefault ? `${currentDefault.toLocaleString()} MMK` : "—"}
+                </span>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* All orgs */}
           <Card>
             <CardHeader>
