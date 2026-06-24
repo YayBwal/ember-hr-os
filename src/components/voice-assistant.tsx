@@ -1,179 +1,207 @@
-import { useEffect, useRef, useState } from "react";
-import { Room, RoomEvent, Track, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
-import { KrispNoiseFilter, isKrispNoiseFilterSupported } from "@livekit/krisp-noise-filter";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, Phone, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useNavigate } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { voiceChat } from "@/lib/voice.functions";
 
-type Status = "idle" | "connecting" | "live" | "error";
+type Status = "idle" | "listening" | "thinking" | "speaking" | "error";
+type Line = { id: string; who: "you" | "ai"; text: string };
 
-interface TranscriptLine {
-  id: string;
-  who: "you" | "agent";
-  text: string;
-  final: boolean;
+// Web Speech API types (minimal)
+type SR = any;
+
+declare global {
+  interface Window {
+    SpeechRecognition?: SR;
+    webkitSpeechRecognition?: SR;
+  }
 }
 
 export function VoiceAssistant() {
   const [status, setStatus] = useState<Status>("idle");
-  const [muted, setMuted] = useState(false);
   const [open, setOpen] = useState(false);
-  const [lines, setLines] = useState<TranscriptLine[]>([]);
-  const [agentSpeaking, setAgentSpeaking] = useState(false);
-  const roomRef = useRef<Room | null>(null);
-  const audioElRef = useRef<HTMLAudioElement | null>(null);
-  const navigate = useNavigate();
-  const qc = useQueryClient();
+  const [lines, setLines] = useState<Line[]>([]);
+  const [muted, setMuted] = useState(false);
+  const recRef = useRef<any>(null);
+  const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
+  const shouldListenRef = useRef(false);
+  const chat = useServerFn(voiceChat);
 
-  useEffect(() => () => { roomRef.current?.disconnect(); }, []);
+  const supported =
+    typeof window !== "undefined" &&
+    (window.SpeechRecognition || window.webkitSpeechRecognition) &&
+    "speechSynthesis" in window;
 
-  async function connect() {
-    if (status === "connecting" || status === "live") return;
-    setStatus("connecting");
-    setLines([]);
+  const speak = useCallback((text: string) => {
+    return new Promise<void>((resolve) => {
+      if (!("speechSynthesis" in window)) return resolve();
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "my-MM";
+      u.rate = 1;
+      u.pitch = 1;
+      // Try to pick a Burmese voice if available
+      const voices = window.speechSynthesis.getVoices();
+      const my = voices.find((v) => v.lang?.toLowerCase().startsWith("my"));
+      if (my) u.voice = my;
+      u.onend = () => resolve();
+      u.onerror = () => resolve();
+      window.speechSynthesis.speak(u);
+    });
+  }, []);
+
+  const startListening = useCallback(() => {
+    const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Ctor) return;
     try {
-      const { data: sess } = await supabase.auth.getSession();
-      const token = sess.session?.access_token;
-      if (!token) throw new Error("Not signed in");
-
-      const res = await fetch("/api/livekit-token", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error(`Token error ${res.status}`);
-      const { token: lkToken, url } = (await res.json()) as { token: string; url: string };
-
-      const room = new Room({
-        adaptiveStream: true,
-        dynacast: true,
-        audioCaptureDefaults: {
-          autoGainControl: true,
-          echoCancellation: true,
-          noiseSuppression: true,
-        },
-      });
-      roomRef.current = room;
-
-      room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
-        if (track.kind === Track.Kind.Audio && audioElRef.current) {
-          track.attach(audioElRef.current);
-          if (participant.identity.startsWith("agent")) setAgentSpeaking(true);
+      const rec = new Ctor();
+      rec.lang = "my-MM";
+      rec.interimResults = false;
+      rec.maxAlternatives = 1;
+      rec.continuous = false;
+      rec.onstart = () => setStatus("listening");
+      rec.onerror = (e: any) => {
+        if (e.error === "not-allowed") {
+          toast.error("မိုက်ခွင့်ပြုပါ — Microphone permission denied");
+          shouldListenRef.current = false;
+          setStatus("error");
+          setTimeout(() => setStatus("idle"), 1500);
+        } else if (e.error === "no-speech") {
+          // try again silently
+          if (shouldListenRef.current) setTimeout(() => startListening(), 200);
+        } else {
+          console.warn("speech error", e.error);
         }
-      });
-      room.on(RoomEvent.TrackUnsubscribed, (track) => track.detach());
-      room.on(RoomEvent.ActiveSpeakersChanged, (speakers) => {
-        setAgentSpeaking(speakers.some((s) => s.identity.startsWith("agent")));
-      });
-      room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
-        const who: "you" | "agent" = participant?.identity.startsWith("agent") ? "agent" : "you";
-        setLines((prev) => {
-          const next = [...prev];
-          for (const seg of segments) {
-            const idx = next.findIndex((l) => l.id === seg.id);
-            if (idx >= 0) next[idx] = { ...next[idx], text: seg.text, final: seg.final };
-            else next.push({ id: seg.id, who, text: seg.text, final: seg.final });
-          }
-          return next.slice(-40);
-        });
-      });
-      room.on(RoomEvent.DataReceived, (payload) => {
+      };
+      rec.onresult = async (event: any) => {
+        const text = event.results[0]?.[0]?.transcript?.trim();
+        if (!text) {
+          if (shouldListenRef.current) setTimeout(() => startListening(), 200);
+          return;
+        }
+        const id = crypto.randomUUID();
+        setLines((p) => [...p, { id, who: "you", text }]);
+        historyRef.current.push({ role: "user", content: text });
+        setStatus("thinking");
         try {
-          const msg = JSON.parse(new TextDecoder().decode(payload)) as
-            | { type: "navigate"; to: string }
-            | { type: "tool_result"; tool: string; ok: boolean; summary?: string }
-            | { type: "invalidate"; keys: string[][] };
-          if (msg.type === "navigate") navigate({ to: msg.to as any });
-          else if (msg.type === "tool_result") {
-            toast.success(`${msg.tool}: ${msg.summary ?? (msg.ok ? "ok" : "failed")}`);
-            qc.invalidateQueries();
-          } else if (msg.type === "invalidate") {
-            msg.keys.forEach((k) => qc.invalidateQueries({ queryKey: k }));
-          }
-        } catch {}
-      });
-      room.on(RoomEvent.Disconnected, () => {
-        setStatus("idle");
-        setAgentSpeaking(false);
-      });
-
-      await room.connect(url, lkToken);
-      await room.localParticipant.setMicrophoneEnabled(true);
-
-      // Apply Krisp noise filter on the published mic track
-      if (isKrispNoiseFilterSupported()) {
-        const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-        const micTrack = micPub?.track;
-        if (micTrack && "setProcessor" in micTrack) {
-          try {
-            await (micTrack as any).setProcessor(KrispNoiseFilter());
-          } catch (e) {
-            console.warn("Krisp filter failed", e);
+          const { reply } = await chat({ data: { messages: historyRef.current } });
+          historyRef.current.push({ role: "assistant", content: reply });
+          setLines((p) => [...p, { id: crypto.randomUUID(), who: "ai", text: reply }]);
+          setStatus("speaking");
+          await speak(reply);
+        } catch (err: any) {
+          toast.error(err?.message ?? "AI ဖြေဆိုရာတွင် ပြဿနာရှိနေသည်");
+        } finally {
+          if (shouldListenRef.current) {
+            setTimeout(() => startListening(), 150);
+          } else {
+            setStatus("idle");
           }
         }
-      }
-
-      setStatus("live");
-      setOpen(true);
-    } catch (e: any) {
+      };
+      rec.onend = () => {
+        // handled in onresult / onerror
+      };
+      recRef.current = rec;
+      rec.start();
+    } catch (e) {
       console.error(e);
-      toast.error(e?.message ?? "Voice connect failed");
       setStatus("error");
-      roomRef.current?.disconnect();
       setTimeout(() => setStatus("idle"), 1500);
     }
-  }
+  }, [chat, speak]);
 
-  async function hangup() {
-    await roomRef.current?.disconnect();
-    roomRef.current = null;
+  const start = useCallback(async () => {
+    if (!supported) {
+      toast.error("ဤbrowserတွင် voice မဖော်ပြနိုင်ပါ — Use Chrome/Edge");
+      return;
+    }
+    try {
+      // Prime mic permission
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach((t) => t.stop());
+    } catch {
+      toast.error("မိုက်ခွင့်ပြုပါ");
+      return;
+    }
+    // Warm up voices
+    window.speechSynthesis.getVoices();
+    setOpen(true);
+    setLines([]);
+    historyRef.current = [];
+    shouldListenRef.current = true;
+    startListening();
+  }, [supported, startListening]);
+
+  const hangup = useCallback(() => {
+    shouldListenRef.current = false;
+    try { recRef.current?.stop(); } catch {}
+    try { window.speechSynthesis.cancel(); } catch {}
     setStatus("idle");
     setOpen(false);
-    setAgentSpeaking(false);
-  }
+  }, []);
 
-  async function toggleMute() {
-    const room = roomRef.current;
-    if (!room) return;
+  const toggleMute = useCallback(() => {
     const next = !muted;
-    await room.localParticipant.setMicrophoneEnabled(!next);
     setMuted(next);
-  }
+    if (next) {
+      shouldListenRef.current = false;
+      try { recRef.current?.stop(); } catch {}
+      setStatus("idle");
+    } else {
+      shouldListenRef.current = true;
+      startListening();
+    }
+  }, [muted, startListening]);
 
-  const isLive = status === "live";
+  useEffect(() => () => { hangup(); }, [hangup]);
+
+  const isLive = open;
+  const statusLabel = {
+    idle: "Ready",
+    listening: "နားထောင်နေသည် · Listening",
+    thinking: "စဉ်းစားနေသည် · Thinking",
+    speaking: "ပြောနေသည် · Speaking",
+    error: "Error",
+  }[status];
 
   return (
     <>
-      <audio ref={audioElRef} autoPlay playsInline />
       <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2">
-        {open && isLive && (
+        {isLive && (
           <div className="w-[320px] max-h-[360px] flex flex-col rounded-lg border border-border bg-card shadow-xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-border px-3 py-2">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-2 w-2">
-                  <span className={`absolute inline-flex h-full w-full rounded-full ${agentSpeaking ? "bg-primary animate-ping" : "bg-emerald-500"}`} />
-                  <span className={`relative inline-flex h-2 w-2 rounded-full ${agentSpeaking ? "bg-primary" : "bg-emerald-500"}`} />
+                  <span className={`absolute inline-flex h-full w-full rounded-full ${status === "speaking" ? "bg-primary animate-ping" : status === "listening" ? "bg-emerald-500 animate-ping" : "bg-muted-foreground"}`} />
+                  <span className={`relative inline-flex h-2 w-2 rounded-full ${status === "speaking" ? "bg-primary" : status === "listening" ? "bg-emerald-500" : "bg-muted-foreground"}`} />
                 </span>
                 <span className="text-xs font-mono uppercase tracking-[0.18em] text-muted-foreground">
-                  {agentSpeaking ? "Agent speaking" : "Listening · မြန်မာ"}
+                  {statusLabel}
                 </span>
               </div>
-              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setOpen(false)}>
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={hangup}>
                 <X className="h-3 w-3" />
               </Button>
             </div>
             <div className="flex-1 overflow-y-auto p-3 space-y-2 text-sm">
               {lines.length === 0 && (
-                <p className="text-xs text-muted-foreground">မိုက်ကိုနှိပ်၍ မြန်မာစကားပြောပါ — Tap mic and speak in Burmese.</p>
+                <p className="text-xs text-muted-foreground">မြန်မာစကားပြောပါ — Speak in Burmese.</p>
               )}
               {lines.map((l) => (
-                <div key={l.id} className={l.who === "agent" ? "text-foreground" : "text-muted-foreground"}>
-                  <span className="text-[10px] font-mono uppercase tracking-[0.18em] mr-1">{l.who === "agent" ? "AI" : "YOU"}</span>
+                <div key={l.id} className={l.who === "ai" ? "text-foreground" : "text-muted-foreground"}>
+                  <span className="text-[10px] font-mono uppercase tracking-[0.18em] mr-1">
+                    {l.who === "ai" ? "AI" : "YOU"}
+                  </span>
                   {l.text}
                 </div>
               ))}
+              {status === "thinking" && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" /> ...
+                </div>
+              )}
             </div>
             <div className="flex items-center gap-2 border-t border-border px-3 py-2">
               <Button size="sm" variant={muted ? "default" : "outline"} onClick={toggleMute} className="h-8">
@@ -187,16 +215,13 @@ export function VoiceAssistant() {
         )}
 
         <Button
-          onClick={isLive ? () => setOpen((o) => !o) : connect}
-          disabled={status === "connecting"}
+          onClick={isLive ? () => setOpen((o) => !o) : start}
           size="lg"
-          className={`h-14 w-14 rounded-full shadow-xl ${isLive ? "bg-primary" : "bg-primary"} ${agentSpeaking ? "ring-4 ring-primary/40 animate-pulse" : ""}`}
+          className={`h-14 w-14 rounded-full shadow-xl bg-primary ${status === "speaking" || status === "listening" ? "ring-4 ring-primary/40 animate-pulse" : ""}`}
           title={isLive ? "Voice assistant active" : "Talk to Mandai AI (Burmese)"}
         >
-          {status === "connecting" ? (
+          {status === "thinking" ? (
             <Loader2 className="h-5 w-5 animate-spin" />
-          ) : isLive ? (
-            <Mic className="h-5 w-5" />
           ) : (
             <Mic className="h-5 w-5" />
           )}
