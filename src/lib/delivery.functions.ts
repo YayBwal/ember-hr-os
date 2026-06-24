@@ -54,7 +54,16 @@ export const updateTask = createServerFn({ method: "POST" })
     }) => d,
   )
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = {};
+    const patch: {
+      status?: Status;
+      completed_at?: string | null;
+      progress?: number;
+      priority?: Priority;
+      assignee_employee_id?: string | null;
+      due_date?: string | null;
+      title?: string;
+      description?: string | null;
+    } = {};
     if (data.status !== undefined) {
       patch.status = data.status;
       patch.completed_at = data.status === "done" ? new Date().toISOString() : null;
