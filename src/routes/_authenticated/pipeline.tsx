@@ -436,7 +436,7 @@ function PipelinePage() {
       </div>
 
       <AddCandidateDialog open={open} onOpenChange={setOpen} />
-      <ApproveDialog candidate={approving} onClose={() => setApproving(null)} />
+      <ApproveDialog candidate={approving} defaultBase={approving?.trainee_salary_mmk ?? defaultTraineeSalary} onClose={() => setApproving(null)} />
     </AppShell>
   );
 }
