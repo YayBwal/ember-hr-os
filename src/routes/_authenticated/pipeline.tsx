@@ -452,9 +452,10 @@ function AddCandidateDialog({
     async (files: FileList | File[]) => {
       if (!finalRole) { toast.error("Pick a role first"); return; }
       const arr = Array.from(files).filter((f) =>
-        ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "text/plain"].includes(f.type),
+        ["application/pdf", "text/plain"].includes(f.type),
       );
-      if (arr.length === 0) { toast.error("Drop a PDF, DOCX, or TXT file"); return; }
+      if (arr.length === 0) { toast.error("Drop a PDF or TXT file (convert DOCX to PDF first)"); return; }
+
       setBusy(true);
       setProgress({ done: 0, total: arr.length });
       let okCount = 0;
@@ -595,7 +596,7 @@ function AddCandidateDialog({
                 ref={fileRef}
                 type="file"
                 multiple
-                accept=".pdf,.docx,.doc,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain"
+                accept=".pdf,.txt,application/pdf,text/plain"
                 className="hidden"
                 onChange={(e) => e.target.files && handleFiles(e.target.files)}
               />
@@ -613,7 +614,7 @@ function AddCandidateDialog({
                     <Upload className="h-5 w-5 text-primary" />
                   </div>
                   <div className="text-sm font-medium">Drop CVs here or click to browse</div>
-                  <div className="text-xs text-muted-foreground">PDF, DOCX, TXT · up to 8MB each · batch upload</div>
+                  <div className="text-xs text-muted-foreground">PDF or TXT · up to 8MB each · batch upload</div>
                 </>
               )}
             </div>
