@@ -49,3 +49,28 @@ export const runPayroll = createServerFn({ method: "POST" })
     }
     return { ok: true, count: emps?.length ?? 0 };
   });
+
+export type EmployeeLevel = "junior" | "mid" | "senior" | "lead";
+
+export const promoteEmployee = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: {
+    employeeId: string;
+    toLevel: EmployeeLevel;
+    toPosition: string;
+    toBaseMmk: number;
+    effectiveDate?: string;
+    note?: string;
+  }) => d)
+  .handler(async ({ data, context }) => {
+    const { data: id, error } = await context.supabase.rpc("promote_employee", {
+      _employee_id: data.employeeId,
+      _to_level: data.toLevel,
+      _to_position: data.toPosition,
+      _to_base_mmk: data.toBaseMmk,
+      _effective_date: data.effectiveDate ?? new Date().toISOString().slice(0, 10),
+      _note: data.note ?? null,
+    });
+    if (error) throw new Error(error.message);
+    return { id };
+  });
