@@ -3,7 +3,13 @@ import { Mic, MicOff, Phone, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
+import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { voiceChat } from "@/lib/voice.functions";
+
+type Action =
+  | { type: "navigate"; to: string }
+  | { type: "highlight_candidates"; ids: string[] };
 
 type Status = "idle" | "listening" | "thinking" | "speaking" | "error";
 type Line = { id: string; who: "you" | "ai"; text: string };
