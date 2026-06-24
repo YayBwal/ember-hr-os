@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
+import { VoiceAssistant } from "@/components/voice-assistant";
 
 type Profile = { id: string; full_name: string | null; org_id: string };
 type Org = { id: string; name: string };
@@ -110,6 +111,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
           {children ?? <Outlet />}
         </main>
       </div>
+      <VoiceAssistant />
     </div>
   );
 }
