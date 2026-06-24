@@ -276,14 +276,14 @@ function AddCandidateDialog({
   const [email, setEmail] = useState("");
   const [skillsText, setSkillsText] = useState("");
   const [notes, setNotes] = useState("");
-  const [stage, setStage] = useState<Stage>("new");
+  const [stage, setStage] = useState<Stage>("sourcing");
 
   function reset() {
     setFullName("");
     setEmail("");
     setSkillsText("");
     setNotes("");
-    setStage("new");
+    setStage("sourcing");
     setCustomRole("");
     setRole(ROLE_PRESETS[0]);
     setBusy(false);
@@ -328,7 +328,7 @@ function AddCandidateDialog({
               full_name: parsed.full_name,
               email: parsed.email,
               role_applied: finalRole,
-              status: "new",
+              status: "sourcing",
               ai_match_score: parsed.ai_match_score,
               skills: parsed.skills,
               next_action: parsed.next_action,
