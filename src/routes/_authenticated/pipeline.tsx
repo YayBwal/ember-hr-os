@@ -511,7 +511,7 @@ function AddCandidateDialog({
                 <Select value={stage} onValueChange={(v) => setStage(v as Stage)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {STAGES.map((s) => <SelectItem key={s} value={s}>{STAGE_LABELS[s]}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -554,7 +554,17 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 function nextStage(s: Stage): Stage | null {
-  const order: Stage[] = ["new", "screening", "interview", "offer", "onboarded"];
+  const order: Stage[] = [
+    "sourcing",
+    "screening",
+    "hr_interview",
+    "technical_interview",
+    "assessment",
+    "final_interview",
+    "offer",
+    "approved",
+    "hired",
+  ];
   const idx = order.indexOf(s);
   if (idx === -1 || idx >= order.length - 1) return null;
   return order[idx + 1];
@@ -562,16 +572,18 @@ function nextStage(s: Stage): Stage | null {
 
 function StageBadge({ status }: { status: Stage }) {
   const tone =
-    status === "onboarded"
+    status === "hired"
       ? "bg-success/15 text-success"
-      : status === "offer"
-        ? "bg-primary/10 text-primary"
-        : status === "rejected"
-          ? "bg-muted text-muted-foreground"
-          : "bg-accent/40 text-accent-foreground";
+      : status === "approved"
+        ? "bg-primary/15 text-primary"
+        : status === "offer"
+          ? "bg-primary/10 text-primary"
+          : status === "rejected"
+            ? "bg-muted text-muted-foreground"
+            : "bg-accent/40 text-accent-foreground";
   return (
     <span className={`rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${tone}`}>
-      {status}
+      {STAGE_LABELS[status]}
     </span>
   );
 }
