@@ -35,6 +35,7 @@ type Employee = {
   performance_score: number; attendance_pct: number;
   team_id: string | null; join_date: string | null;
   phone: string | null; avatar_url: string | null; salary_grade: string | null;
+  level: "junior" | "mid" | "senior" | "lead";
 };
 type Team = { id: string; name: string; department: Dept; team_lead_employee_id: string | null };
 type Kpi = { employee_id: string; period_month: string; task_completion: number; productivity: number; quality: number; attendance: number; kpi: number };
