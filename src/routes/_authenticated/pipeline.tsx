@@ -19,8 +19,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles, UserCheck } from "lucide-react";
 import { parseCv, scoreManual } from "@/lib/pipeline.functions";
+import { approveCandidate } from "@/lib/operations.functions";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline · Mandai" }] }),
