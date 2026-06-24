@@ -1,46 +1,50 @@
-## Goal
-Make hired candidates always surface in Operations, and add a real-world Trainee step to the pipeline with a per-org default trainee salary (overridable per candidate).
+# Financial: Payroll + Promotions
 
-## Stage flow
-```
-Screening → Interview → ┬─ Trainee → Hired
-                        └─ Hired (direct)
-                Reject (any stage) → deleted
-```
-- Trainee is a **pipeline-only** stage. No employee row is created yet.
-- Hired creates the employee row (existing `approve_candidate` RPC) and they appear in Operations.
+Restructure the Financial page into two tabs and connect promotions to Pipeline/Operations so a "Junior → Senior" change updates salary, keeps history, and flows into payroll automatically.
 
-## Changes
+## Tab 1 — Payroll (existing)
+Keep current payroll table, KPI bonus tiers, extra bonus/deduction dialogs, and Recompute button. No behavior change.
 
-### 1. Database (migration)
-- Extend enum: `ALTER TYPE candidate_status ADD VALUE 'trainee'` (before `hired`).
-- Add `candidates.trainee_salary_mmk bigint NULL` (override).
-- Add `organizations.default_trainee_salary_mmk bigint NOT NULL DEFAULT 500000`.
-- Keep existing reject-delete trigger and `approve_candidate` RPC unchanged.
+## Tab 2 — Promotions (new)
+For every active employee, show:
+- Current position + level (Junior / Mid / Senior / Lead)
+- Current base salary
+- Last promotion date
+- **Promote** button → dialog: new level, new position, new base salary (prefilled from a level-default), effective date, optional note
+- **Promotion history** expandable row: every past change with old → new salary, who approved, date
 
-### 2. Pipeline UI (`src/routes/_authenticated/pipeline.tsx`)
-- Add **Trainee** tab + count alongside Screening / Interview / Hired.
-- Row actions by stage:
-  - Screening → "Advance to Interview"
-  - Interview → split button: **Move to Trainee** (opens small dialog: trainee salary prefilled from org default, editable) **or** **Hire** (opens existing ApproveDialog).
-  - Trainee → **Promote to Hired** (opens ApproveDialog; monthly base prefilled from trainee salary so HR can bump it).
-  - Hired → read-only (link to employee in Operations).
-- Bulk actions respect the current stage's next step.
-- Reject button still available on any non-hired stage.
+A small KPI strip at the top: avg tenure, # promoted this quarter, total salary delta from promotions this month.
 
-### 3. Organization settings
-- Add a "Default trainee salary (MMK)" field on `src/routes/_authenticated/organization.tsx` (admin only), wired through a new `set_org_default_trainee_salary` RPC.
+### Cool extras (small, high‑value)
+1. **Suggested promotions** — surface employees with 3-month rolling KPI ≥ 90 who haven't been promoted in 6+ months. One-click "Review" opens the promote dialog.
+2. **Salary band guardrail** — each level has a min/max band (org setting). Dialog warns if new salary is outside the band; admin can override with a reason logged in history.
+3. **Auto-recompute** — saving a promotion bumps `employees.monthly_base_mmk` and re-runs payroll for the effective month so the Payroll tab reflects it instantly.
 
-### 4. Operations visibility (verify, fix if needed)
-- Operations already reads from `employees`, which `approve_candidate` populates. Confirm the query is scoped to `current_org_id()` so cross-org users don't see empty lists, and surface a "Newly hired" badge for employees with `join_date = today` so the user sees the flow worked end-to-end.
+## Pipeline ↔ Financial link
+- When a candidate is hired (existing `approve_candidate` RPC), the first row in `employee_promotions` is auto-inserted as the "Hired at <level>" baseline. So every employee's salary history starts at hire.
+- Operations row gets a tiny "Lvl: Senior" chip next to the name, sourced from the latest promotion.
+
+## Technical details
+
+### Schema (one migration)
+- `public.employee_level` enum: `junior | mid | senior | lead`
+- `employees.level employee_level NOT NULL DEFAULT 'junior'`
+- `organizations.salary_bands jsonb` — `{ junior:{min,max}, mid:{...}, ... }` with sensible MMK defaults
+- `public.employee_promotions`:
+  - `id, employee_id, org_id, from_level, to_level, from_base_mmk, to_base_mmk, from_position, to_position, effective_date, note, created_by, created_at`
+  - GRANT to authenticated + service_role; RLS scoped to `current_org_id()`
+- RPC `promote_employee(_employee_id, _to_level, _to_position, _to_base_mmk, _effective_date, _note)` — SECURITY DEFINER, admin-only, inserts history row, updates `employees.level/position/monthly_base_mmk`, calls `recompute_payroll` for the effective month
+- Extend `approve_candidate` to insert the baseline promotion row (from_* = NULL)
+
+### Frontend
+- `src/routes/_authenticated/financial.tsx` → wrap content in shadcn `Tabs` (Payroll | Promotions); move current body into `<PayrollTab />`, add `<PromotionsTab />`
+- New components: `src/components/financial/payroll-tab.tsx`, `promotions-tab.tsx`, `promote-dialog.tsx`
+- New server fn `promoteEmployee` in `src/lib/financial.functions.ts` calling the RPC
+- `operations.tsx`: add level badge from `employees.level`
 
 ## Out of scope
-- Trainee performance tracking, probation timers, automatic promotion.
-- Separate trainee payroll line (trainees are not employees yet, so no payroll is generated for them — by design of "Trainee only in Pipeline").
+- Demotions UI (the table supports it via history, but no dedicated button this round)
+- Multi-currency, retroactive back-pay calculations beyond the effective month
+- Department/team transfers (separate concern)
 
-## Files touched
-- `supabase/migrations/<new>.sql` — enum value, two columns, RPC for default salary.
-- `src/routes/_authenticated/pipeline.tsx` — Trainee tab, dialog, actions.
-- `src/routes/_authenticated/organization.tsx` — default salary setting.
-- `src/routes/_authenticated/operations.tsx` — minor: "Newly hired" badge + org-scope check.
-- `src/integrations/supabase/types.ts` — regenerated post-migration.
+Want me to build this as specced, or adjust any part (e.g. different level names, skip salary bands, skip the suggestions panel)?
