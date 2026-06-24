@@ -452,9 +452,10 @@ function AddCandidateDialog({
     async (files: FileList | File[]) => {
       if (!finalRole) { toast.error("Pick a role first"); return; }
       const arr = Array.from(files).filter((f) =>
-        ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword", "text/plain"].includes(f.type),
+        ["application/pdf", "text/plain"].includes(f.type),
       );
-      if (arr.length === 0) { toast.error("Drop a PDF, DOCX, or TXT file"); return; }
+      if (arr.length === 0) { toast.error("Drop a PDF or TXT file (convert DOCX to PDF first)"); return; }
+
       setBusy(true);
       setProgress({ done: 0, total: arr.length });
       let okCount = 0;
