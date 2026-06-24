@@ -103,16 +103,28 @@ function AuthPage() {
 
   async function handleGoogle() {
     setOauthLoading(true);
-    const result = await lovable.auth.signInWithOAuth("google", {
-      redirect_uri: window.location.origin,
-    });
-    if (result.error) {
+    try {
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+      });
+      if (result.error) {
+        console.error("Google sign-in error:", result.error);
+        setOauthLoading(false);
+        const msg =
+          (result.error as { message?: string })?.message ??
+          String(result.error);
+        toast.error(`Google sign-in failed: ${msg}`);
+        return;
+      }
+      if (result.redirected) return;
+      navigate({ to: "/dashboard" });
+    } catch (err) {
+      console.error("Google sign-in threw:", err);
       setOauthLoading(false);
-      toast.error("Google sign-in failed");
-      return;
+      toast.error(
+        `Google sign-in failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
-    if (result.redirected) return;
-    navigate({ to: "/dashboard" });
   }
 
   return (
