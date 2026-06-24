@@ -565,3 +565,72 @@ function MatchBar({ score }: { score: number }) {
     </div>
   );
 }
+
+function ApproveDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const approve = useServerFn(approveCandidate);
+  const [department, setDepartment] = useState<"HR" | "Operations" | "Finance" | "Admin" | "Engineering">("Engineering");
+  const [position, setPosition] = useState("");
+  const [base, setBase] = useState<string>("1500000");
+
+  useState(() => {
+    if (candidate) setPosition(candidate.role_applied);
+    return undefined;
+  });
+
+  const submit = useMutation({
+    mutationFn: () =>
+      approve({
+        data: {
+          candidateId: candidate!.id,
+          department,
+          position: position || candidate!.role_applied,
+          monthlyBase: Number(base) || 0,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Approved — employee created");
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={!!candidate} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Approve {candidate?.full_name}</DialogTitle>
+          <DialogDescription>Creates an employee record and onboards them.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Department</Label>
+            <Select value={department} onValueChange={(v) => setDepartment(v as typeof department)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(["HR", "Operations", "Finance", "Admin", "Engineering"] as const).map((d) => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Position</Label>
+            <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder={candidate?.role_applied} />
+          </div>
+          <div>
+            <Label>Monthly base (MMK)</Label>
+            <Input type="number" value={base} onChange={(e) => setBase(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => submit.mutate()} disabled={submit.isPending}>
+            {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve & create employee"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
