@@ -835,17 +835,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "recruiter" | "hr" | "finance"
       attendance_status: "present" | "late" | "absent" | "leave"
-      candidate_status:
-        | "sourcing"
-        | "screening"
-        | "hr_interview"
-        | "technical_interview"
-        | "assessment"
-        | "final_interview"
-        | "offer"
-        | "approved"
-        | "hired"
-        | "rejected"
+      candidate_status: "screening" | "interview" | "hired" | "rejected"
       department: "HR" | "Operations" | "Finance" | "Admin" | "Engineering"
       meeting_status:
         | "uploaded"
@@ -990,18 +980,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "recruiter", "hr", "finance"],
       attendance_status: ["present", "late", "absent", "leave"],
-      candidate_status: [
-        "sourcing",
-        "screening",
-        "hr_interview",
-        "technical_interview",
-        "assessment",
-        "final_interview",
-        "offer",
-        "approved",
-        "hired",
-        "rejected",
-      ],
+      candidate_status: ["screening", "interview", "hired", "rejected"],
       department: ["HR", "Operations", "Finance", "Admin", "Engineering"],
       meeting_status: [
         "uploaded",
