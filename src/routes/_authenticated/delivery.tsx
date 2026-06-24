@@ -1,254 +1,240 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Sparkles, Loader2, AudioLines } from "lucide-react";
-import { toast } from "sonner";
-import { useEffect, useState } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import { Loader2, Plus, MoreHorizontal } from "lucide-react";
+import { initials } from "@/lib/format";
+import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
+import { createTask, updateTask } from "@/lib/delivery.functions";
 
 export const Route = createFileRoute("/_authenticated/delivery")({
   head: () => ({ meta: [{ title: "Delivery · Mandai" }] }),
   component: DeliveryPage,
 });
 
-type TaskStatus = "todo" | "in_progress" | "review" | "done";
+type Status = "todo" | "in_progress" | "review" | "done" | "blocked" | "cancelled";
+type Priority = "low" | "medium" | "high" | "urgent";
 type Task = {
-  id: string;
-  title: string;
-  description: string | null;
-  status: TaskStatus;
-  assignee_employee_id: string | null;
-  effort_points: number;
-  due_date: string | null;
+  id: string; title: string; description: string | null;
+  status: Status; priority: Priority; progress: number;
+  assignee_employee_id: string | null; due_date: string | null; effort_points: number;
 };
-
-const COLUMNS: { id: TaskStatus; label: string }[] = [
-  { id: "todo", label: "To Do" },
+const COLUMNS: { id: Status; label: string }[] = [
+  { id: "todo", label: "Pending" },
   { id: "in_progress", label: "In Progress" },
   { id: "review", label: "Review" },
-  { id: "done", label: "Done" },
+  { id: "done", label: "Completed" },
 ];
+const PRIO_COLOR: Record<Priority, string> = {
+  low: "bg-muted text-muted-foreground",
+  medium: "bg-primary/15 text-primary",
+  high: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
+  urgent: "bg-destructive/15 text-destructive",
+};
 
 function DeliveryPage() {
+  useRealtimeInvalidate(["tasks", "employees", "task_comments"], ["tasks", "employees_min", "task_comments"]);
   const qc = useQueryClient();
+  const create = useServerFn(createTask);
+  const update = useServerFn(updateTask);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Task | null>(null);
+  const [form, setForm] = useState<{ title: string; description: string; assignee_employee_id: string; priority: Priority; due_date: string }>({
+    title: "", description: "", assignee_employee_id: "", priority: "medium", due_date: "",
+  });
 
   const { data: tasks } = useQuery({
     queryKey: ["tasks"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, title, description, status, assignee_employee_id, effort_points, due_date")
-        .order("position");
-      if (error) throw error;
+      const { data } = await supabase.from("tasks").select("id,title,description,status,priority,progress,assignee_employee_id,due_date,effort_points").order("created_at", { ascending: false });
       return (data ?? []) as Task[];
     },
   });
-
-  // realtime
-  useEffect(() => {
-    const channel = supabase
-      .channel("tasks-realtime")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, () => {
-        qc.invalidateQueries({ queryKey: ["tasks"] });
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [qc]);
-
-  const move = useMutation({
-    mutationFn: async ({ id, status }: { id: string; status: TaskStatus }) => {
-      const patch: Partial<Task> & { completed_at?: string | null } = { status };
-      (patch as any).completed_at = status === "done" ? new Date().toISOString() : null;
-      const { error } = await supabase.from("tasks").update(patch).eq("id", id);
-      if (error) throw error;
-    },
-    onMutate: async ({ id, status }) => {
-      await qc.cancelQueries({ queryKey: ["tasks"] });
-      const prev = qc.getQueryData<Task[]>(["tasks"]);
-      qc.setQueryData<Task[]>(["tasks"], (t) => t?.map((x) => (x.id === id ? { ...x, status } : x)) ?? []);
-      return { prev };
-    },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(["tasks"], ctx.prev);
-      toast.error("Couldn't move task");
-    },
-    onSuccess: (_d, vars) => {
-      if (vars.status === "done") {
-        toast.success("Task done — payroll will recalculate");
-        qc.invalidateQueries({ queryKey: ["kpis"] });
-      }
+  const { data: employees } = useQuery({
+    queryKey: ["employees_min"],
+    queryFn: async () => {
+      const { data } = await supabase.from("employees").select("id,full_name");
+      return (data ?? []) as { id: string; full_name: string }[];
     },
   });
+  const empName = (id: string | null) => employees?.find((e) => e.id === id)?.full_name ?? "Unassigned";
 
-  function onDrop(status: TaskStatus, ev: React.DragEvent) {
-    ev.preventDefault();
-    const id = ev.dataTransfer.getData("text/task-id");
-    if (id) move.mutate({ id, status });
-  }
+  const submitCreate = useMutation({
+    mutationFn: () => create({
+      data: {
+        title: form.title,
+        description: form.description || undefined,
+        assigneeEmployeeId: form.assignee_employee_id || null,
+        priority: form.priority,
+        dueDate: form.due_date || null,
+      },
+    }),
+    onSuccess: () => {
+      toast.success("Task created");
+      setOpen(false);
+      setForm({ title: "", description: "", assignee_employee_id: "", priority: "medium", due_date: "" });
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const moveTask = (id: string, status: Status) =>
+    update({ data: { id, status } }).then(() => qc.invalidateQueries({ queryKey: ["tasks"] }));
 
   return (
     <AppShell>
       <div className="px-4 py-6 md:px-8">
-        <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex items-start justify-between">
           <div>
             <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Delivery</div>
-            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Action board</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Drag to update. Completing a task triggers payroll recalculation.
-            </p>
+            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Tasks</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Drag-free kanban. Status changes recompute KPI and payroll live.</p>
           </div>
-          <AIIngestDialog />
+          <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />New task</Button></DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Create task</DialogTitle></DialogHeader>
+              <div className="space-y-3">
+                <div><Label>Title</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+                <div><Label>Description</Label><Textarea rows={3} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Assignee</Label>
+                    <Select value={form.assignee_employee_id} onValueChange={(v) => setForm({ ...form, assignee_employee_id: v })}>
+                      <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                      <SelectContent>{(employees ?? []).map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Priority</Label>
+                    <Select value={form.priority} onValueChange={(v) => setForm({ ...form, priority: v as Priority })}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>{(["low", "medium", "high", "urgent"] as Priority[]).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="col-span-2"><Label>Due date</Label><Input type="date" value={form.due_date} onChange={(e) => setForm({ ...form, due_date: e.target.value })} /></div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={() => submitCreate.mutate()} disabled={!form.title || submitCreate.isPending}>
+                  {submitCreate.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Create"}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           {COLUMNS.map((col) => {
-            const colTasks = (tasks ?? []).filter((t) => t.status === col.id);
+            const items = (tasks ?? []).filter((t) => t.status === col.id);
             return (
-              <div
-                key={col.id}
-                className="rounded-xl border border-border bg-card p-3"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={(e) => onDrop(col.id, e)}
-              >
-                <div className="flex items-center justify-between px-1">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-1.5 w-1.5 rounded-full ${col.id === "in_progress" ? "bg-primary" : "bg-muted-foreground/40"}`} />
-                    <span className="text-xs font-medium uppercase tracking-wider">{col.label}</span>
-                  </div>
-                  <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono">{colTasks.length}</span>
+              <div key={col.id} className="rounded-xl border border-border bg-card p-3">
+                <div className="mb-2 flex items-center justify-between">
+                  <div className="font-display text-sm font-semibold">{col.label}</div>
+                  <Badge variant="outline">{items.length}</Badge>
                 </div>
-                <div className="mt-3 space-y-2 min-h-[120px]">
-                  {colTasks.map((t) => (
-                    <TaskCard key={t.id} task={t} />
-                  ))}
-                  {colTasks.length === 0 && (
-                    <div className="rounded-md border border-dashed border-border py-6 text-center text-[11px] text-muted-foreground">
-                      Drop here
+                <div className="space-y-2">
+                  {items.map((t) => (
+                    <div key={t.id} className="cursor-pointer rounded-lg border border-border bg-background p-3 hover:border-primary/40" onClick={() => setEditing(t)}>
+                      <div className="flex items-start justify-between">
+                        <div className="font-medium text-sm">{t.title}</div>
+                        <span className={`rounded px-1.5 py-0.5 text-[10px] uppercase ${PRIO_COLOR[t.priority]}`}>{t.priority}</span>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initials(empName(t.assignee_employee_id))}</AvatarFallback></Avatar>
+                          <span>{t.due_date ?? "—"}</span>
+                        </div>
+                        <span>{t.progress}%</span>
+                      </div>
+                      <Progress value={t.progress} className="mt-1 h-1" />
                     </div>
-                  )}
+                  ))}
+                  {items.length === 0 && <div className="rounded-md border border-dashed border-border p-3 text-center text-xs text-muted-foreground">Empty</div>}
                 </div>
               </div>
             );
           })}
         </div>
       </div>
+
+      <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editing?.title}</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-3 text-sm">
+              <p className="text-muted-foreground">{editing.description || "No description"}</p>
+              <div>
+                <Label>Status</Label>
+                <Select value={editing.status} onValueChange={(v) => moveTask(editing.id, v as Status).then(() => setEditing(null))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {(["todo", "in_progress", "review", "done", "blocked", "cancelled"] as Status[]).map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>Progress · {editing.progress}%</Label>
+                <input
+                  type="range" min={0} max={100} value={editing.progress}
+                  onChange={(e) => setEditing({ ...editing, progress: Number(e.target.value) })}
+                  onMouseUp={() => update({ data: { id: editing.id, progress: editing.progress } }).then(() => qc.invalidateQueries({ queryKey: ["tasks"] }))}
+                  className="w-full"
+                />
+              </div>
+              <TaskComments taskId={editing.id} />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
 
-function TaskCard({ task }: { task: Task }) {
+function TaskComments({ taskId }: { taskId: string }) {
+  const qc = useQueryClient();
+  const [body, setBody] = useState("");
+  const { data: comments } = useQuery({
+    queryKey: ["task_comments", taskId],
+    queryFn: async () => {
+      const { data } = await supabase.from("task_comments").select("id,body,created_at,author_user_id").eq("task_id", taskId).order("created_at");
+      return data ?? [];
+    },
+  });
+  const submit = async () => {
+    if (!body.trim()) return;
+    const { error } = await supabase.from("task_comments").insert({ task_id: taskId, body });
+    if (error) { toast.error(error.message); return; }
+    setBody("");
+    qc.invalidateQueries({ queryKey: ["task_comments", taskId] });
+  };
   return (
-    <div
-      draggable
-      onDragStart={(e) => e.dataTransfer.setData("text/task-id", task.id)}
-      className="cursor-grab rounded-md border border-border bg-background p-3 shadow-sm transition-shadow hover:border-primary/40 hover:shadow-md active:cursor-grabbing"
-    >
-      <div className="text-sm font-medium leading-snug">{task.title}</div>
-      {task.description && (
-        <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{task.description}</div>
-      )}
-      <div className="mt-3 flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-muted-foreground">
-        <span>{task.effort_points} pts</span>
-        {task.due_date && <span>{task.due_date}</span>}
+    <div>
+      <Label className="text-xs">Comments</Label>
+      <div className="mt-1 space-y-1">
+        {(comments ?? []).map((c) => (
+          <div key={c.id} className="rounded border border-border p-2 text-xs">
+            <div className="text-[10px] text-muted-foreground">{new Date(c.created_at).toLocaleString()}</div>
+            <div>{c.body}</div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex gap-2">
+        <Input value={body} onChange={(e) => setBody(e.target.value)} placeholder="Add comment…" />
+        <Button size="sm" onClick={submit}><MoreHorizontal className="h-4 w-4" /></Button>
       </div>
     </div>
-  );
-}
-
-function AIIngestDialog() {
-  const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState("");
-  const [transcript, setTranscript] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function run() {
-    if (!transcript.trim()) {
-      toast.error("Paste a meeting transcript first");
-      return;
-    }
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.functions.invoke("extract-tasks", {
-        body: { title: title || "Untitled meeting", transcript },
-      });
-      if (error) throw error;
-      const count = (data as { created?: number })?.created ?? 0;
-      toast.success(`AI created ${count} task${count === 1 ? "" : "s"}`);
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-      qc.invalidateQueries({ queryKey: ["ai", "activity"] });
-      setOpen(false);
-      setTitle("");
-      setTranscript("");
-    } catch (e) {
-      toast.error((e as Error).message || "AI extraction failed");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="gap-1.5">
-          <Sparkles className="h-3.5 w-3.5" /> Ingest meeting
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="max-w-xl">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <AudioLines className="h-4 w-4 text-primary" /> Ingest meeting → AI tasks
-          </DialogTitle>
-          <DialogDescription>
-            Paste a meeting transcript. Mandai extracts action items and drops them into the board.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="m-title">Meeting title</Label>
-            <Input
-              id="m-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Sept Ops sync"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="m-transcript">Transcript</Label>
-            <Textarea
-              id="m-transcript"
-              rows={8}
-              value={transcript}
-              onChange={(e) => setTranscript(e.target.value)}
-              placeholder="Aung will finalize Q3 payroll by Friday. Hnin will source 5 senior engineer candidates next week. Kyaw to audit attendance anomalies and review with Phyo…"
-            />
-          </div>
-        </div>
-        <DialogFooter>
-          <Button variant="ghost" onClick={() => setOpen(false)} disabled={loading}>
-            Cancel
-          </Button>
-          <Button onClick={run} disabled={loading} className="gap-1.5">
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            {loading ? "Extracting…" : "Extract tasks"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   );
 }

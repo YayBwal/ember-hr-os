@@ -19,8 +19,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles, UserCheck } from "lucide-react";
 import { parseCv, scoreManual } from "@/lib/pipeline.functions";
+import { approveCandidate } from "@/lib/operations.functions";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline · Mandai" }] }),
@@ -57,6 +58,7 @@ type Candidate = {
 function PipelinePage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [approving, setApproving] = useState<Candidate | null>(null);
   const { q } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [searchInput, setSearchInput] = useState(q ?? "");
@@ -176,7 +178,16 @@ function PipelinePage() {
                 <div className="col-span-3 text-xs text-muted-foreground truncate" title={c.next_action ?? ""}>
                   {c.next_action ?? "—"}
                 </div>
-                <div className="col-span-1 text-right">
+                <div className="col-span-1 flex items-center justify-end gap-1">
+                  {c.status !== "onboarded" && (
+                    <button
+                      onClick={() => setApproving(c)}
+                      title="Approve & create employee"
+                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+                    >
+                      <UserCheck className="h-3 w-3" />
+                    </button>
+                  )}
                   {nextStage(c.status) && (
                     <button
                       onClick={() => advance.mutate({ id: c.id, status: nextStage(c.status)! })}
@@ -193,6 +204,7 @@ function PipelinePage() {
       </div>
 
       <AddCandidateDialog open={open} onOpenChange={setOpen} />
+      <ApproveDialog candidate={approving} onClose={() => setApproving(null)} />
     </AppShell>
   );
 }
@@ -551,5 +563,72 @@ function MatchBar({ score }: { score: number }) {
       </div>
       <span className="font-mono text-xs">{pct.toFixed(0)}</span>
     </div>
+  );
+}
+
+function ApproveDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+  const qc = useQueryClient();
+  const approve = useServerFn(approveCandidate);
+  const [department, setDepartment] = useState<"HR" | "Operations" | "Finance" | "Admin" | "Engineering">("Engineering");
+  const [position, setPosition] = useState("");
+  const [base, setBase] = useState<string>("1500000");
+
+  // position prefilled from role_applied via fallback in submit; user can edit
+
+
+  const submit = useMutation({
+    mutationFn: () =>
+      approve({
+        data: {
+          candidateId: candidate!.id,
+          department,
+          position: position || candidate!.role_applied,
+          monthlyBase: Number(base) || 0,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Approved — employee created");
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+      qc.invalidateQueries({ queryKey: ["employees"] });
+      onClose();
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  return (
+    <Dialog open={!!candidate} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Approve {candidate?.full_name}</DialogTitle>
+          <DialogDescription>Creates an employee record and onboards them.</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <Label>Department</Label>
+            <Select value={department} onValueChange={(v) => setDepartment(v as typeof department)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(["HR", "Operations", "Finance", "Admin", "Engineering"] as const).map((d) => (
+                  <SelectItem key={d} value={d}>{d}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Position</Label>
+            <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder={candidate?.role_applied} />
+          </div>
+          <div>
+            <Label>Monthly base (MMK)</Label>
+            <Input type="number" value={base} onChange={(e) => setBase(e.target.value)} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => submit.mutate()} disabled={submit.isPending}>
+            {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Approve & create employee"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
