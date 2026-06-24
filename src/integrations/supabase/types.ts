@@ -780,6 +780,29 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_list_all_users: {
+        Args: never
+        Returns: {
+          email: string
+          full_name: string
+          id: string
+          org_id: string
+          org_name: string
+        }[]
+      }
+      admin_list_organizations: {
+        Args: never
+        Returns: {
+          created_at: string
+          id: string
+          member_count: number
+          name: string
+        }[]
+      }
+      admin_set_user_org: {
+        Args: { _org_id: string; _user_id: string }
+        Returns: undefined
+      }
       approve_candidate: {
         Args: {
           _candidate_id: string
@@ -790,6 +813,7 @@ export type Database = {
         }
         Returns: string
       }
+      create_and_switch_org: { Args: { _name: string }; Returns: string }
       current_org_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -806,6 +830,7 @@ export type Database = {
         Args: { _employee_id: string; _period: string }
         Returns: undefined
       }
+      switch_my_org: { Args: { _org_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "recruiter" | "hr" | "finance"
