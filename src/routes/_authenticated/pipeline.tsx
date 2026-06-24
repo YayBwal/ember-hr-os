@@ -283,6 +283,16 @@ function PipelinePage() {
                   <ArrowRight className="h-3.5 w-3.5" /> Move to Interview
                 </Button>
               )}
+              {activeStage === "interview" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => moveToTrainee(Array.from(selected))}
+                  className="gap-1.5"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" /> Move to Trainee
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
