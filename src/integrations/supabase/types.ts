@@ -470,6 +470,54 @@ export type Database = {
           },
         ]
       }
+      member_ratings: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          note: string | null
+          productivity: number
+          quality: number
+          report_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          note?: string | null
+          productivity: number
+          quality: number
+          report_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          note?: string | null
+          productivity?: number
+          quality?: number
+          report_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_ratings_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "member_ratings_report_id_fkey"
+            columns: ["report_id"]
+            isOneToOne: false
+            referencedRelation: "team_reports"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       organizations: {
         Row: {
           created_at: string
@@ -588,6 +636,71 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      peer_reviews: {
+        Row: {
+          created_at: string
+          id: string
+          note: string | null
+          org_id: string
+          period_month: string
+          reviewee_employee_id: string
+          reviewer_employee_id: string
+          score: number
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          org_id: string
+          period_month: string
+          reviewee_employee_id: string
+          reviewer_employee_id: string
+          score: number
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          note?: string | null
+          org_id?: string
+          period_month?: string
+          reviewee_employee_id?: string
+          reviewer_employee_id?: string
+          score?: number
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peer_reviews_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_reviews_reviewee_employee_id_fkey"
+            columns: ["reviewee_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_reviews_reviewer_employee_id_fkey"
+            columns: ["reviewer_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "peer_reviews_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
             referencedColumns: ["id"]
           },
         ]
@@ -784,6 +897,63 @@ export type Database = {
           },
         ]
       }
+      team_reports: {
+        Row: {
+          created_at: string
+          file_url: string | null
+          id: string
+          org_id: string
+          period_end: string
+          period_start: string
+          status: string
+          submitted_by: string | null
+          summary: string | null
+          team_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          file_url?: string | null
+          id?: string
+          org_id: string
+          period_end: string
+          period_start: string
+          status?: string
+          submitted_by?: string | null
+          summary?: string | null
+          team_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          file_url?: string | null
+          id?: string
+          org_id?: string
+          period_end?: string
+          period_start?: string
+          status?: string
+          submitted_by?: string | null
+          summary?: string | null
+          team_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_reports_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_reports_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       teams: {
         Row: {
           created_at: string
@@ -855,6 +1025,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_team_member: {
+        Args: { _employee_id: string; _team_id: string }
+        Returns: undefined
+      }
       admin_list_all_users: {
         Args: never
         Returns: {
@@ -878,6 +1052,10 @@ export type Database = {
         Args: { _org_id: string; _user_id: string }
         Returns: undefined
       }
+      appoint_team_leader: {
+        Args: { _employee_id: string; _team_id: string }
+        Returns: undefined
+      }
       approve_candidate: {
         Args: {
           _candidate_id: string
@@ -890,6 +1068,13 @@ export type Database = {
       }
       create_and_switch_org: { Args: { _name: string }; Returns: string }
       current_org_id: { Args: never; Returns: string }
+      get_peer_avg: {
+        Args: { _employee_id: string; _period: string }
+        Returns: {
+          avg_score: number
+          review_count: number
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -914,6 +1099,11 @@ export type Database = {
       }
       recompute_payroll: {
         Args: { _employee_id: string; _period: string }
+        Returns: undefined
+      }
+      remove_team_leader: { Args: { _team_id: string }; Returns: undefined }
+      remove_team_member: {
+        Args: { _employee_id: string; _team_id: string }
         Returns: undefined
       }
       set_org_default_trainee_salary: {
