@@ -14,6 +14,82 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance: {
+        Row: {
+          created_at: string
+          date: string
+          employee_id: string
+          id: string
+          minutes_late: number
+          note: string | null
+          status: Database["public"]["Enums"]["attendance_status"]
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          employee_id: string
+          id?: string
+          minutes_late?: number
+          note?: string | null
+          status: Database["public"]["Enums"]["attendance_status"]
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          employee_id?: string
+          id?: string
+          minutes_late?: number
+          note?: string | null
+          status?: Database["public"]["Enums"]["attendance_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bonuses: {
+        Row: {
+          amount_mmk: number
+          created_at: string
+          employee_id: string
+          id: string
+          period_month: string
+          reason: string | null
+          source: string
+        }
+        Insert: {
+          amount_mmk?: number
+          created_at?: string
+          employee_id: string
+          id?: string
+          period_month: string
+          reason?: string | null
+          source?: string
+        }
+        Update: {
+          amount_mmk?: number
+          created_at?: string
+          employee_id?: string
+          id?: string
+          period_month?: string
+          reason?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bonuses_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidates: {
         Row: {
           ai_match_score: number
@@ -67,55 +143,216 @@ export type Database = {
           },
         ]
       }
+      deductions: {
+        Row: {
+          amount_mmk: number
+          created_at: string
+          employee_id: string
+          id: string
+          period_month: string
+          reason: string | null
+          source: string
+        }
+        Insert: {
+          amount_mmk?: number
+          created_at?: string
+          employee_id: string
+          id?: string
+          period_month: string
+          reason?: string | null
+          source?: string
+        }
+        Update: {
+          amount_mmk?: number
+          created_at?: string
+          employee_id?: string
+          id?: string
+          period_month?: string
+          reason?: string | null
+          source?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deductions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      employee_kpis: {
+        Row: {
+          attendance: number
+          employee_id: string
+          id: string
+          kpi: number
+          period_month: string
+          productivity: number
+          quality: number
+          task_completion: number
+          updated_at: string
+        }
+        Insert: {
+          attendance?: number
+          employee_id: string
+          id?: string
+          kpi?: number
+          period_month: string
+          productivity?: number
+          quality?: number
+          task_completion?: number
+          updated_at?: string
+        }
+        Update: {
+          attendance?: number
+          employee_id?: string
+          id?: string
+          kpi?: number
+          period_month?: string
+          productivity?: number
+          quality?: number
+          task_completion?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_kpis_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           attendance_pct: number
+          avatar_url: string | null
+          candidate_id: string | null
           created_at: string
           department: Database["public"]["Enums"]["department"]
           email: string | null
           full_name: string
           id: string
+          join_date: string
           monthly_base_mmk: number
           org_id: string
           performance_score: number
+          phone: string | null
           position: string
+          salary_grade: string | null
+          team_id: string | null
           updated_at: string
           workload: number
         }
         Insert: {
           attendance_pct?: number
+          avatar_url?: string | null
+          candidate_id?: string | null
           created_at?: string
           department: Database["public"]["Enums"]["department"]
           email?: string | null
           full_name: string
           id?: string
+          join_date?: string
           monthly_base_mmk?: number
           org_id: string
           performance_score?: number
+          phone?: string | null
           position: string
+          salary_grade?: string | null
+          team_id?: string | null
           updated_at?: string
           workload?: number
         }
         Update: {
           attendance_pct?: number
+          avatar_url?: string | null
+          candidate_id?: string | null
           created_at?: string
           department?: Database["public"]["Enums"]["department"]
           email?: string | null
           full_name?: string
           id?: string
+          join_date?: string
           monthly_base_mmk?: number
           org_id?: string
           performance_score?: number
+          phone?: string | null
           position?: string
+          salary_grade?: string | null
+          team_id?: string | null
           updated_at?: string
           workload?: number
         }
         Relationships: [
           {
+            foreignKeyName: "employees_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "employees_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employees_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      meeting_summaries: {
+        Row: {
+          action_items: Json
+          created_at: string
+          deadlines: Json
+          decisions: Json
+          id: string
+          key_points: Json
+          meeting_id: string
+          participants: Json
+          risks: Json
+          summary: string | null
+        }
+        Insert: {
+          action_items?: Json
+          created_at?: string
+          deadlines?: Json
+          decisions?: Json
+          id?: string
+          key_points?: Json
+          meeting_id: string
+          participants?: Json
+          risks?: Json
+          summary?: string | null
+        }
+        Update: {
+          action_items?: Json
+          created_at?: string
+          deadlines?: Json
+          decisions?: Json
+          id?: string
+          key_points?: Json
+          meeting_id?: string
+          participants?: Json
+          risks?: Json
+          summary?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "meeting_summaries_meeting_id_fkey"
+            columns: ["meeting_id"]
+            isOneToOne: true
+            referencedRelation: "meetings"
             referencedColumns: ["id"]
           },
         ]
@@ -188,9 +425,13 @@ export type Database = {
       payroll_lines: {
         Row: {
           base_mmk: number
+          bonus_mmk: number
           created_at: string
+          deduction_mmk: number
           employee_id: string
           id: string
+          kpi_snapshot: number
+          overtime_mmk: number
           performance_bonus_mmk: number
           run_id: string
           tasks_completed: number
@@ -198,9 +439,13 @@ export type Database = {
         }
         Insert: {
           base_mmk?: number
+          bonus_mmk?: number
           created_at?: string
+          deduction_mmk?: number
           employee_id: string
           id?: string
+          kpi_snapshot?: number
+          overtime_mmk?: number
           performance_bonus_mmk?: number
           run_id: string
           tasks_completed?: number
@@ -208,9 +453,13 @@ export type Database = {
         }
         Update: {
           base_mmk?: number
+          bonus_mmk?: number
           created_at?: string
+          deduction_mmk?: number
           employee_id?: string
           id?: string
+          kpi_snapshot?: number
+          overtime_mmk?: number
           performance_bonus_mmk?: number
           run_id?: string
           tasks_completed?: number
@@ -306,6 +555,38 @@ export type Database = {
           },
         ]
       }
+      task_comments: {
+        Row: {
+          author_user_id: string | null
+          body: string
+          created_at: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          author_user_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          author_user_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           assignee_employee_id: string | null
@@ -318,7 +599,10 @@ export type Database = {
           meeting_id: string | null
           org_id: string
           position: number
+          priority: Database["public"]["Enums"]["task_priority"]
+          progress: number
           status: Database["public"]["Enums"]["task_status"]
+          team_id: string | null
           title: string
           updated_at: string
         }
@@ -333,7 +617,10 @@ export type Database = {
           meeting_id?: string | null
           org_id: string
           position?: number
+          priority?: Database["public"]["Enums"]["task_priority"]
+          progress?: number
           status?: Database["public"]["Enums"]["task_status"]
+          team_id?: string | null
           title: string
           updated_at?: string
         }
@@ -348,7 +635,10 @@ export type Database = {
           meeting_id?: string | null
           org_id?: string
           position?: number
+          priority?: Database["public"]["Enums"]["task_priority"]
+          progress?: number
           status?: Database["public"]["Enums"]["task_status"]
+          team_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -369,6 +659,94 @@ export type Database = {
           },
           {
             foreignKeyName: "tasks_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          department: Database["public"]["Enums"]["department"]
+          id: string
+          name: string
+          org_id: string
+          team_lead_employee_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          department: Database["public"]["Enums"]["department"]
+          id?: string
+          name: string
+          org_id: string
+          team_lead_employee_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          department?: Database["public"]["Enums"]["department"]
+          id?: string
+          name?: string
+          org_id?: string
+          team_lead_employee_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teams_lead_fk"
+            columns: ["team_lead_employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "teams_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
@@ -402,6 +780,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      approve_candidate: {
+        Args: {
+          _candidate_id: string
+          _department: Database["public"]["Enums"]["department"]
+          _monthly_base: number
+          _position: string
+          _team_id?: string
+        }
+        Returns: string
+      }
       current_org_id: { Args: never; Returns: string }
       has_role: {
         Args: {
@@ -410,9 +798,18 @@ export type Database = {
         }
         Returns: boolean
       }
+      recompute_employee_kpi: {
+        Args: { _employee_id: string; _period: string }
+        Returns: undefined
+      }
+      recompute_payroll: {
+        Args: { _employee_id: string; _period: string }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "admin" | "recruiter" | "hr" | "finance"
+      attendance_status: "present" | "late" | "absent" | "leave"
       candidate_status:
         | "new"
         | "screening"
@@ -427,7 +824,14 @@ export type Database = {
         | "extracting"
         | "ready"
         | "failed"
-      task_status: "todo" | "in_progress" | "review" | "done"
+      task_priority: "low" | "medium" | "high" | "urgent"
+      task_status:
+        | "todo"
+        | "in_progress"
+        | "review"
+        | "done"
+        | "blocked"
+        | "cancelled"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -556,6 +960,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "recruiter", "hr", "finance"],
+      attendance_status: ["present", "late", "absent", "leave"],
       candidate_status: [
         "new",
         "screening",
@@ -572,7 +977,15 @@ export const Constants = {
         "ready",
         "failed",
       ],
-      task_status: ["todo", "in_progress", "review", "done"],
+      task_priority: ["low", "medium", "high", "urgent"],
+      task_status: [
+        "todo",
+        "in_progress",
+        "review",
+        "done",
+        "blocked",
+        "cancelled",
+      ],
     },
   },
 } as const
