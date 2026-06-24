@@ -64,6 +64,7 @@ type Candidate = {
   notes: string | null;
   skills: string[] | null;
   next_action: string | null;
+  trainee_salary_mmk: number | null;
 };
 
 const PAGE_SIZE = 25;
