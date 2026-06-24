@@ -178,7 +178,16 @@ function PipelinePage() {
                 <div className="col-span-3 text-xs text-muted-foreground truncate" title={c.next_action ?? ""}>
                   {c.next_action ?? "—"}
                 </div>
-                <div className="col-span-1 text-right">
+                <div className="col-span-1 flex items-center justify-end gap-1">
+                  {c.status !== "onboarded" && (
+                    <button
+                      onClick={() => setApproving(c)}
+                      title="Approve & create employee"
+                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
+                    >
+                      <UserCheck className="h-3 w-3" />
+                    </button>
+                  )}
                   {nextStage(c.status) && (
                     <button
                       onClick={() => advance.mutate({ id: c.id, status: nextStage(c.status)! })}
@@ -195,6 +204,7 @@ function PipelinePage() {
       </div>
 
       <AddCandidateDialog open={open} onOpenChange={setOpen} />
+      <ApproveDialog candidate={approving} onClose={() => setApproving(null)} />
     </AppShell>
   );
 }
