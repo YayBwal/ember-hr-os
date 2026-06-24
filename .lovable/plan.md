@@ -1,82 +1,64 @@
+# Burmese Speech‑to‑Speech Assistant (Global Mic)
 
-# Mandai — AI HR Operations Layer
+A floating mic in the AppShell opens a live voice session. User speaks Burmese, hears Burmese back, and the assistant can read/control Pipeline, Operations, Delivery, and Financial in real time. Audio runs through a LiveKit Cloud room with Krisp noise cancellation; a LiveKit Agent worker uses Gemini Live as the realtime model.
 
-A real-time AI HR platform unifying recruitment (Pipeline), workforce (Operations), meeting-to-task (Delivery), and MMK payroll (Financial). Red + white SaaS UI, real backend via Lovable Cloud.
+## Important capability note
 
-## Phase 0 — Design directions (first turn after approval)
-Generate 3 rendered design directions covering BOTH the landing page and the dashboard view in each. Locked constraints across all three:
-- Red (#E5283C-ish) + white, charcoal dark mode, light gray neutrals
-- Linear/Stripe-inspired restraint, red reserved for primary action / active AI / live states
-- Each direction varies composition, density, and emphasis (e.g. editorial bold vs. dense operator vs. minimal precision)
+Lovable AI Gateway currently exposes chat, transcription, embeddings and image — **not** Gemini's bidirectional Live (realtime audio) API. True S2S therefore needs a direct Google AI Studio / Vertex `GEMINI_API_KEY` on the agent worker. I'll keep the rest on Lovable AI (intent parsing / Burmese summarisation fallbacks) so only one extra key is required.
 
-You pick one, then I build everything below against it.
+Two things I need from you to proceed in build mode:
+1. **LiveKit Cloud** project — `LIVEKIT_URL` (wss://…), `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`.
+2. **Google AI Studio** key with Gemini Live access — `GEMINI_API_KEY`.
+   (If you'd rather not, I'll downgrade to STT→LLM→TTS pseudo‑S2S over Lovable AI only — higher latency, no true interruption.)
 
-## Phase 1 — Foundation
-- Enable Lovable Cloud (Supabase: auth, DB, storage, AI Gateway)
-- Tailwind v4 tokens in `src/styles.css`: red primary, neutrals, dark-mode variants, semantic tokens (`--background`, `--primary`, `--ai-active`, `--ring`)
-- Theme toggle with CSS variable swap (no layout shift)
-- Type pair + base components (shadcn buttons, cards, dialog, dropdown, kanban primitives)
+## Architecture
 
-## Phase 2 — Landing page (`/`)
-Public route, SSR-friendly, own `head()` metadata.
-- Hero: "AI Operations Layer for Enterprise HR" + red **Enter Workspace** CTA → `/auth` (or `/dashboard` if signed in)
-- 4 feature blocks: Pipeline / Operations / Delivery / Financial
-- Timeline section: HR inefficiency → AI automation → unified system
-- Footer
+```text
+ Browser (AppShell mic)
+   │  getUserMedia → KrispNoiseFilter (livekit/krisp-noise-filter)
+   │  livekit-client → join room with short‑lived token
+   ▼
+ LiveKit Cloud Room  ───────────────►  LiveKit Agent Worker (Python, hosted by you on LiveKit Cloud Agents)
+   ▲                                    │ plugins: google.beta.realtime (Gemini Live, my-MM)
+   │ agent audio track                  │ tools: create_task, move_task, query_kpi, query_payroll, navigate
+   │                                    │ → calls TanStack server fns over HTTPS w/ service JWT
+   └──────────────── audio ◄────────────┘
+```
 
-## Phase 3 — Auth (`/auth`)
-- Email/password + Google sign-in (via Lovable broker, `supabase--configure_social_auth`)
-- Sign-in / sign-up modal card; sign-up fields: org, name, email, password
-- DB:
-  - `organizations` (id, name)
-  - `profiles` (id ↔ auth.users, org_id, name, avatar, preferences) + trigger on signup
-  - `user_roles` (separate table, `app_role` enum: admin | recruiter | hr | finance) + `has_role()` security-definer
-- RLS on every table; explicit GRANTs per public-schema rules
-- Profile settings page (avatar, role display, preferences, security)
+Server functions exposed to the agent (signed call, service role):
+- `agent.createTask({ title, assignee?, points?, due? })`
+- `agent.moveTask({ taskId, status })`
+- `agent.listTasks({ status?, assignee? })`
+- `agent.getKpis()` / `agent.getPayrollSummary()`
+- `agent.recalcPayroll()`
+- `agent.navigate({ route })` → pushed back to browser via LiveKit data channel; client routes via TanStack router.
 
-## Phase 4 — Dashboard shell (`/_authenticated/*`)
-Managed `_authenticated/route.tsx` gate (integration-owned).
-- Sidebar: Pipeline, Operations, Delivery, Financial (collapsible)
-- Top bar: role switcher (Recruiter/HR/Finance/Admin — filters views), theme toggle, profile dropdown
-- KPI grid: employees, open tasks, monthly payroll (MMK), avg performance, attendance %
-- Live AI activity indicator (red pulse when a job is running)
+## Build steps
 
-## Phase 5 — Mock enterprise data + modules
-Seeded via migration (~10 employees across HR/Ops/Finance/Admin, MMK salaries, baseline KPIs).
-- **Pipeline**: candidates list, AI match score, status flow (new → screening → interview → offer → onboarded)
-- **Operations**: employee directory, workload, attendance, productivity charts
-- **Delivery**: Kanban (To Do / In Progress / Review / Done), drag-and-drop with optimistic updates, task ↔ employee ↔ meeting linkage
-- **Financial**: MMK payroll table, per-employee breakdown tied to completed Delivery tasks + performance score, recalculation log
+1. **Secrets**: request `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, `GEMINI_API_KEY` via `add_secret`. Generate `AGENT_SERVICE_TOKEN` (HMAC shared secret between agent and our server fns).
+2. **Token endpoint** — `src/routes/api/livekit-token.ts` (auth‑required). Mints a LiveKit JWT scoped to room `mandai-{userId}-{ts}` with publish/subscribe and metadata `{ userId, orgId }`.
+3. **Agent tool endpoints** — `src/routes/api/public/agent/*.ts`. HMAC‑verified using `AGENT_SERVICE_TOKEN` + room metadata. Internally call existing Supabase logic with service role, scoped to the caller's org.
+4. **LiveKit Agent worker** — `agents/mandai_voice/` (Python, livekit-agents 1.x). System prompt: "You are Mandai's Burmese operations assistant. Reply in Burmese (Myanmar). Use tools for any data action." Uses `google.beta.realtime.RealtimeModel(model="gemini-2.5-flash-native-audio-preview", language="my-MM", voice="Aoede")`. Includes `noise_cancellation=BVC()` as a backup; primary denoise stays client‑side via Krisp. Tools wrap the HTTP endpoints above. README documents `lk agent deploy`.
+5. **Client integration**:
+   - `bun add livekit-client @livekit/components-react @livekit/krisp-noise-filter`
+   - `src/components/voice-assistant.tsx` — floating red mic FAB in `AppShell`. States: idle → connecting → listening (pulsing) → speaking → error. Shows live transcript captions (Burmese) and the active tool call (e.g. "✓ Task created: …").
+   - On connect: fetch token → `Room.connect()` → `room.localParticipant.setMicrophoneEnabled(true, { processor: KrispNoiseFilter() })` → subscribe to agent audio track and play. Data channel listens for `{ type: 'navigate', to }` and calls `router.navigate`. On task/payroll mutations, invalidate the relevant React Query keys so KPIs/Kanban update without reload.
+6. **UI affordances**:
+   - Mic FAB bottom‑right, hidden on `/` and `/auth`.
+   - Burmese helper text ("မိုက်ကိုနှိပ်၍ မြန်မာစကားပြောပါ").
+   - Mute, end‑call, and a "Show transcript" drawer.
+7. **Realtime task sync**: enable Supabase Realtime on `tasks` and `payroll` so when the agent inserts via service role, every open client sees it instantly (already wired in Delivery; extend to Financial).
+8. **Verification**: `invoke-server-function` against token endpoint; `curl` the agent tool endpoints with HMAC; manual voice test via Playwright is impractical for audio, so I'll smoke‑test by sending a synthetic text turn into the agent and checking the task appears.
 
-All data via TanStack Query + `createServerFn` (RLS-scoped). No hardcoded UI data.
+## Out of scope this round
+- Multi‑language switching mid‑session (Burmese only).
+- Voice biometric auth.
+- Persistent conversation history UI (transient drawer only).
 
-## Phase 6 — AI core loop (Delivery)
-1. Upload meeting audio → Supabase Storage (private bucket, signed URL)
-2. Server fn calls Lovable AI Gateway STT (`openai/gpt-4o-mini-transcribe`, streaming)
-3. Second AI call (Gemini Flash) extracts action items → structured JSON (title, assignee guess, due, effort)
-4. Auto-insert tasks into Kanban (To Do)
-5. Drag → optimistic status update; on "Done", trigger payroll recalculation server fn
-6. Payroll + KPI cards refresh via query invalidation (real-time feel)
+## Tech section
+- LiveKit Agent worker is a separate Python process you deploy on LiveKit Cloud Agents (`lk agent create / deploy`). Lovable's Worker runtime can't host it (no long‑lived processes, no Python).
+- Krisp filter runs in the browser via WASM (`@livekit/krisp-noise-filter`), so denoise happens before audio leaves the device.
+- Burmese voice: Gemini Live's `Aoede` / `Charon` voices speak Burmese when `language="my-MM"` is set; if quality is poor we'll switch to Gemini STT → Lovable AI text → Gemini TTS.
+- Auth on tool endpoints uses HMAC(secret, body+timestamp) — never expose `AGENT_SERVICE_TOKEN` to the browser.
 
-Realtime channel on `tasks` + `payroll_runs` so other tabs/users update without reload.
-
-## Phase 7 — Polish
-- Loading skeletons everywhere, error boundaries on every route, `notFoundComponent`
-- Toasts for async actions
-- Empty states
-- SEO metadata per route
-- Security pass (RLS audit, role checks on privileged server fns)
-
-## Technical notes
-- TanStack Start + TanStack Query (`ensureQueryData` + `useSuspenseQuery`)
-- All mutations through `createServerFn` with `requireSupabaseAuth`
-- Service-role admin client only for payroll recalculation triggered by verified server-side events
-- MMK formatting via `Intl.NumberFormat('my-MM', { style: 'currency', currency: 'MMK', maximumFractionDigits: 0 })`
-- Realtime via supabase channels on browser client only
-
-## Out of scope (flag now)
-- Real candidate sourcing integrations
-- Multi-tenant billing
-- Mobile app
-
-Approve to start Phase 0 (design directions).
+Reply with the LiveKit + Gemini secrets (or "use STT/TTS fallback") and I'll implement.
