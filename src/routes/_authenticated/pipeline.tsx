@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, UserCheck } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles } from "lucide-react";
 import { parseCv, scoreManual } from "@/lib/pipeline.functions";
 import { approveCandidate } from "@/lib/operations.functions";
 
@@ -86,6 +86,20 @@ function PipelinePage() {
   const { q } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [searchInput, setSearchInput] = useState(q ?? "");
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("candidates-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "candidates" },
+        () => qc.invalidateQueries({ queryKey: ["candidates"] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
 
   const { data: candidates, isLoading } = useQuery({
     queryKey: ["candidates"],
