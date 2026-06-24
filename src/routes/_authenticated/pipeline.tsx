@@ -733,12 +733,15 @@ function MatchBar({ score }: { score: number }) {
   );
 }
 
-function ApproveDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+function ApproveDialog({ candidate, defaultBase, onClose }: { candidate: Candidate | null; defaultBase?: number; onClose: () => void }) {
   const qc = useQueryClient();
   const approve = useServerFn(approveCandidate);
   const [department, setDepartment] = useState<"HR" | "Operations" | "Finance" | "Admin" | "Engineering">("Engineering");
   const [position, setPosition] = useState("");
   const [base, setBase] = useState<string>("1500000");
+  useEffect(() => {
+    if (candidate) setBase(String(defaultBase ?? candidate.trainee_salary_mmk ?? 1500000));
+  }, [candidate, defaultBase]);
 
   const submit = useMutation({
     mutationFn: () =>
