@@ -243,6 +243,22 @@ export function VoiceAssistant() {
               <Button size="sm" variant={muted ? "default" : "outline"} onClick={toggleMute} className="h-8">
                 {muted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
               </Button>
+              <div className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em]">
+                <button
+                  type="button"
+                  onClick={() => setSttLang("my-MM")}
+                  className={`px-1.5 py-0.5 rounded ${sttLang === "my-MM" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  MY
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSttLang("en-US")}
+                  className={`px-1.5 py-0.5 rounded ${sttLang === "en-US" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  EN
+                </button>
+              </div>
               <Button size="sm" variant="destructive" onClick={hangup} className="h-8 ml-auto">
                 <Phone className="h-3.5 w-3.5 mr-1.5 rotate-[135deg]" /> End
               </Button>
