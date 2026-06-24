@@ -108,7 +108,24 @@ function PipelinePage() {
           </Button>
         </div>
 
-        <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
+        <div className="mt-4 flex items-center gap-2">
+          <Input
+            value={searchInput}
+            onChange={(e) => {
+              setSearchInput(e.target.value);
+              navigate({ search: { q: e.target.value || undefined } as any, replace: true });
+            }}
+            placeholder="Search candidates by name…"
+            className="max-w-sm"
+          />
+          {q && (
+            <div className="text-xs text-muted-foreground">
+              Filtered by <span className="font-mono">{q}</span> · {filtered.length} result{filtered.length === 1 ? "" : "s"}
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
           <div className="grid grid-cols-12 gap-2 border-b border-border bg-muted/40 px-4 py-2.5 text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
             <div className="col-span-3">Candidate</div>
             <div className="col-span-2">Role</div>
@@ -119,10 +136,14 @@ function PipelinePage() {
           </div>
           {isLoading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
-          ) : (candidates ?? []).length === 0 ? (
-            <EmptyState onAdd={() => setOpen(true)} />
+          ) : filtered.length === 0 ? (
+            (candidates ?? []).length === 0 ? (
+              <EmptyState onAdd={() => setOpen(true)} />
+            ) : (
+              <div className="p-8 text-center text-sm text-muted-foreground">No matches for "{q}".</div>
+            )
           ) : (
-            (candidates ?? []).map((c) => (
+            filtered.map((c) => (
               <div key={c.id} className="grid grid-cols-12 items-center gap-2 border-b border-border px-4 py-3 last:border-0">
                 <div className="col-span-3 min-w-0">
                   <div className="font-medium truncate">{c.full_name}</div>
