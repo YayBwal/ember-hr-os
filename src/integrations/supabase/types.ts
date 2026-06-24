@@ -923,7 +923,7 @@ export type Database = {
       switch_my_org: { Args: { _org_id: string }; Returns: undefined }
     }
     Enums: {
-      app_role: "admin" | "recruiter" | "hr" | "finance"
+      app_role: "admin" | "recruiter" | "hr" | "finance" | "team_leader"
       attendance_status: "present" | "late" | "absent" | "leave"
       candidate_status:
         | "screening"
@@ -1074,7 +1074,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "recruiter", "hr", "finance"],
+      app_role: ["admin", "recruiter", "hr", "finance", "team_leader"],
       attendance_status: ["present", "late", "absent", "leave"],
       candidate_status: [
         "screening",
