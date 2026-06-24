@@ -33,6 +33,9 @@ export function VoiceAssistant() {
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const shouldListenRef = useRef(false);
   const chat = useServerFn(voiceChat);
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [sttLang, setSttLang] = useState<"my-MM" | "en-US">("my-MM");
 
   const supported =
     typeof window !== "undefined" &&
@@ -44,18 +47,44 @@ export function VoiceAssistant() {
       if (!("speechSynthesis" in window)) return resolve();
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = "my-MM";
+      // Detect Burmese characters (U+1000–U+109F) to pick TTS voice/lang.
+      const hasBurmese = /[\u1000-\u109F]/.test(text);
+      u.lang = hasBurmese ? "my-MM" : "en-US";
       u.rate = 1;
       u.pitch = 1;
-      // Try to pick a Burmese voice if available
       const voices = window.speechSynthesis.getVoices();
-      const my = voices.find((v) => v.lang?.toLowerCase().startsWith("my"));
-      if (my) u.voice = my;
+      const match = voices.find((v) =>
+        hasBurmese ? v.lang?.toLowerCase().startsWith("my") : v.lang?.toLowerCase().startsWith("en"),
+      );
+      if (match) u.voice = match;
       u.onend = () => resolve();
       u.onerror = () => resolve();
       window.speechSynthesis.speak(u);
     });
   }, []);
+
+  const runActions = useCallback(
+    (actions: Action[] | undefined) => {
+      if (!actions) return;
+      for (const a of actions) {
+        if (a.type === "navigate") {
+          try {
+            const [path, search] = a.to.split("?");
+            const params: Record<string, string> = {};
+            if (search) {
+              for (const [k, v] of new URLSearchParams(search)) params[k] = v;
+            }
+            router.navigate({ to: path as any, search: params as any });
+          } catch (e) {
+            console.warn("navigate failed", e);
+          }
+        } else if (a.type === "highlight_candidates") {
+          qc.invalidateQueries({ queryKey: ["candidates"] });
+        }
+      }
+    },
+    [router, qc],
+  );
 
   const startListening = useCallback(() => {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
