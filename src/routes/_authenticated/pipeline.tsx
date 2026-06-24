@@ -57,6 +57,9 @@ type Candidate = {
 function PipelinePage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const { q } = Route.useSearch();
+  const navigate = Route.useNavigate();
+  const [searchInput, setSearchInput] = useState(q ?? "");
 
   const { data: candidates, isLoading } = useQuery({
     queryKey: ["candidates"],
@@ -69,6 +72,12 @@ function PipelinePage() {
       return (data ?? []) as Candidate[];
     },
   });
+
+  const filtered = (() => {
+    const needle = (q ?? "").trim().toLowerCase();
+    if (!needle) return candidates ?? [];
+    return (candidates ?? []).filter((c) => c.full_name?.toLowerCase().includes(needle));
+  })();
 
   const advance = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: Stage }) => {
