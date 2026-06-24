@@ -14,6 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiLivekitTokenRouteImport } from './routes/api/livekit-token'
+import { Route as AuthenticatedTeamLeaderRouteImport } from './routes/_authenticated/team-leader'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedOrganizationRouteImport } from './routes/_authenticated/organization'
@@ -46,6 +47,11 @@ const ApiLivekitTokenRoute = ApiLivekitTokenRouteImport.update({
   id: '/api/livekit-token',
   path: '/api/livekit-token',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedTeamLeaderRoute = AuthenticatedTeamLeaderRouteImport.update({
+  id: '/team-leader',
+  path: '/team-leader',
+  getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
@@ -100,6 +106,7 @@ export interface FileRoutesByFullPath {
   '/organization': typeof AuthenticatedOrganizationRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/team-leader': typeof AuthenticatedTeamLeaderRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
 }
@@ -114,6 +121,7 @@ export interface FileRoutesByTo {
   '/organization': typeof AuthenticatedOrganizationRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
+  '/team-leader': typeof AuthenticatedTeamLeaderRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
 }
@@ -130,6 +138,7 @@ export interface FileRoutesById {
   '/_authenticated/organization': typeof AuthenticatedOrganizationRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
+  '/_authenticated/team-leader': typeof AuthenticatedTeamLeaderRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
 }
@@ -146,6 +155,7 @@ export interface FileRouteTypes {
     | '/organization'
     | '/pipeline'
     | '/settings'
+    | '/team-leader'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
   fileRoutesByTo: FileRoutesByTo
@@ -160,6 +170,7 @@ export interface FileRouteTypes {
     | '/organization'
     | '/pipeline'
     | '/settings'
+    | '/team-leader'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
   id:
@@ -175,6 +186,7 @@ export interface FileRouteTypes {
     | '/_authenticated/organization'
     | '/_authenticated/pipeline'
     | '/_authenticated/settings'
+    | '/_authenticated/team-leader'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
   fileRoutesById: FileRoutesById
@@ -224,6 +236,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/api/livekit-token'
       preLoaderRoute: typeof ApiLivekitTokenRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/team-leader': {
+      id: '/_authenticated/team-leader'
+      path: '/team-leader'
+      fullPath: '/team-leader'
+      preLoaderRoute: typeof AuthenticatedTeamLeaderRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
@@ -292,6 +311,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOrganizationRoute: typeof AuthenticatedOrganizationRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedTeamLeaderRoute: typeof AuthenticatedTeamLeaderRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
@@ -302,6 +322,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOrganizationRoute: AuthenticatedOrganizationRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
+  AuthenticatedTeamLeaderRoute: AuthenticatedTeamLeaderRoute,
 }
 
 const AuthenticatedRouteRouteWithChildren =
