@@ -81,7 +81,7 @@ export const renameTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string; name?: string; teamLeadEmployeeId?: string | null; department?: Dept }) => d)
   .handler(async ({ data, context }) => {
-    const patch: Record<string, unknown> = {};
+    const patch: { name?: string; department?: Dept; team_lead_employee_id?: string | null } = {};
     if (data.name !== undefined) patch.name = data.name;
     if (data.department !== undefined) patch.department = data.department;
     if (data.teamLeadEmployeeId !== undefined) patch.team_lead_employee_id = data.teamLeadEmployeeId;
