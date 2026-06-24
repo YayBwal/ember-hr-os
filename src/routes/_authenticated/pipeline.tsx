@@ -378,21 +378,47 @@ function PipelinePage() {
                   {c.next_action ?? "—"}
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-1">
-                  {c.status !== "hired" && (
+                  {c.status === "screening" && (
                     <button
                       onClick={() => advanceOne(c)}
                       className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
                     >
-                      {c.status === "screening" ? "→ Interview" : "Hire"}
+                      → Interview
                     </button>
                   )}
-                  <button
-                    onClick={() => reject([c.id])}
-                    className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                    title="Reject & delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  {c.status === "interview" && (
+                    <>
+                      <button
+                        onClick={() => moveToTrainee([c.id])}
+                        className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
+                      >
+                        → Trainee
+                      </button>
+                      <button
+                        onClick={() => setApproving(c)}
+                        className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                      >
+                        Hire
+                      </button>
+                    </>
+                  )}
+                  {c.status === "trainee" && (
+                    <button
+                      onClick={() => setApproving(c)}
+                      className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                    >
+                      Promote → Hired
+                    </button>
+                  )}
+                  {c.status !== "hired" && (
+                    <button
+                      onClick={() => reject([c.id])}
+                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                      title="Reject & delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))
