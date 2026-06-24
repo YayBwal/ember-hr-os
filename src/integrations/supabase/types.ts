@@ -21,9 +21,11 @@ export type Database = {
           email: string | null
           full_name: string
           id: string
+          next_action: string | null
           notes: string | null
           org_id: string
           role_applied: string
+          skills: string[]
           status: Database["public"]["Enums"]["candidate_status"]
           updated_at: string
         }
@@ -33,9 +35,11 @@ export type Database = {
           email?: string | null
           full_name: string
           id?: string
+          next_action?: string | null
           notes?: string | null
           org_id: string
           role_applied: string
+          skills?: string[]
           status?: Database["public"]["Enums"]["candidate_status"]
           updated_at?: string
         }
@@ -45,9 +49,11 @@ export type Database = {
           email?: string | null
           full_name?: string
           id?: string
+          next_action?: string | null
           notes?: string | null
           org_id?: string
           role_applied?: string
+          skills?: string[]
           status?: Database["public"]["Enums"]["candidate_status"]
           updated_at?: string
         }
