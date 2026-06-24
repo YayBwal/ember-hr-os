@@ -614,7 +614,7 @@ function AddCandidateDialog({
                     <Upload className="h-5 w-5 text-primary" />
                   </div>
                   <div className="text-sm font-medium">Drop CVs here or click to browse</div>
-                  <div className="text-xs text-muted-foreground">PDF, DOCX, TXT · up to 8MB each · batch upload</div>
+                  <div className="text-xs text-muted-foreground">PDF or TXT · up to 8MB each · batch upload</div>
                 </>
               )}
             </div>
