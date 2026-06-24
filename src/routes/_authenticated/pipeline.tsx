@@ -29,8 +29,32 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
-const STAGES = ["new", "screening", "interview", "offer", "onboarded", "rejected"] as const;
+const STAGES = [
+  "sourcing",
+  "screening",
+  "hr_interview",
+  "technical_interview",
+  "assessment",
+  "final_interview",
+  "offer",
+  "approved",
+  "hired",
+  "rejected",
+] as const;
 type Stage = (typeof STAGES)[number];
+
+const STAGE_LABELS: Record<Stage, string> = {
+  sourcing: "sourcing",
+  screening: "screening",
+  hr_interview: "HR interview",
+  technical_interview: "tech interview",
+  assessment: "assessment",
+  final_interview: "final",
+  offer: "offer",
+  approved: "approved",
+  hired: "hired",
+  rejected: "rejected",
+};
 
 const ROLE_PRESETS = [
   "Software Engineer",
