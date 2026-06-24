@@ -24,6 +24,7 @@ import { parseCv, scoreManual } from "@/lib/pipeline.functions";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline · Mandai" }] }),
+  validateSearch: (s: Record<string, unknown>) => ({ q: typeof s.q === "string" ? s.q : undefined }),
   component: PipelinePage,
 });
 
