@@ -69,7 +69,7 @@ export const promoteEmployee = createServerFn({ method: "POST" })
       _to_position: data.toPosition,
       _to_base_mmk: data.toBaseMmk,
       _effective_date: data.effectiveDate ?? new Date().toISOString().slice(0, 10),
-      _note: data.note ?? null,
+      _note: data.note ?? undefined,
     });
     if (error) throw new Error(error.message);
     return { id };
