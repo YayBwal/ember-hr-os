@@ -32,12 +32,13 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
-const STAGES = ["screening", "interview", "hired"] as const;
+const STAGES = ["screening", "interview", "trainee", "hired"] as const;
 type Stage = (typeof STAGES)[number] | "rejected";
 
 const STAGE_LABELS: Record<Stage, string> = {
   screening: "Screening",
   interview: "Interview",
+  trainee: "Trainee",
   hired: "Hired",
   rejected: "Rejected",
 };
