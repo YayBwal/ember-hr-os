@@ -86,6 +86,11 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     try {
       window.localStorage.setItem("mandai-role", r);
     } catch {}
+    if (r === "Team Leader") {
+      navigate({ to: "/team-leader" });
+    } else {
+      navigate({ to: "/dashboard" });
+    }
   }
 
   async function signOut() {
