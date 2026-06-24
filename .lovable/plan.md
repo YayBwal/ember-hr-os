@@ -1,91 +1,46 @@
 ## Goal
+Make hired candidates always surface in Operations, and add a real-world Trainee step to the pipeline with a per-org default trainee salary (overridable per candidate).
 
-Make the Pipeline page survive a realistic recruiter day (50–100 CVs), fix the "no organisation found" error on Add Candidate, and collapse the hiring funnel from 10 stages to 4.
-
-## 1. Simplify stages to 4 (DB + UI)
-
-New `candidate_status` enum:
-
-```text
-screening  →  interview  →  hired
-                           ↘ rejected (auto-deleted)
+## Stage flow
 ```
-
-**Migration:**
-- Add new enum values `screening`, `interview` if missing; map existing rows:
-  - `sourcing`, `screening` → `screening`
-  - `hr_interview`, `technical_interview`, `assessment`, `final_interview`, `offer`, `approved` → `interview`
-  - `hired` → `hired`
-  - `rejected` → delete row
-- Drop old enum values (recreate enum: rename old, create new, alter column, drop old).
-- Trigger: `AFTER UPDATE ON candidates WHEN status = 'rejected' → DELETE`. This makes "Reject" a one-click destructive action that wipes the candidate per your spec.
-
-**UI stage flow:**
-- `screening → interview`: one-click advance.
-- `interview → hired`: opens the existing Approve dialog (department / position / salary / team) which already creates the `employees` row via `approve_candidate` RPC.
-- Reject button visible at every stage (red, with confirm) → sets `status='rejected'`, trigger deletes.
-
-## 2. Fix "No organisation found" on Add Candidate
-
-Current code (`pipeline.tsx` line 307):
-
-```ts
-supabase.from("profiles").select("org_id").maybeSingle()
+Screening → Interview → ┬─ Trainee → Hired
+                        └─ Hired (direct)
+                Reject (any stage) → deleted
 ```
+- Trainee is a **pipeline-only** stage. No employee row is created yet.
+- Hired creates the employee row (existing `approve_candidate` RPC) and they appear in Operations.
 
-`.maybeSingle()` without `.eq("id", auth.uid())` returns null when RLS exposes 0 rows or >1 rows (e.g., admin who can see all profiles). Replace with the existing `current_org_id()` SECURITY DEFINER function:
+## Changes
 
-```ts
-const { data, error } = await supabase.rpc("current_org_id");
-if (error || !data) throw new Error("No organisation found");
-return data as string;
-```
+### 1. Database (migration)
+- Extend enum: `ALTER TYPE candidate_status ADD VALUE 'trainee'` (before `hired`).
+- Add `candidates.trainee_salary_mmk bigint NULL` (override).
+- Add `organizations.default_trainee_salary_mmk bigint NOT NULL DEFAULT 500000`.
+- Keep existing reject-delete trigger and `approve_candidate` RPC unchanged.
 
-Same fix applied in both `handleFiles` and `submitManual`.
+### 2. Pipeline UI (`src/routes/_authenticated/pipeline.tsx`)
+- Add **Trainee** tab + count alongside Screening / Interview / Hired.
+- Row actions by stage:
+  - Screening → "Advance to Interview"
+  - Interview → split button: **Move to Trainee** (opens small dialog: trainee salary prefilled from org default, editable) **or** **Hire** (opens existing ApproveDialog).
+  - Trainee → **Promote to Hired** (opens ApproveDialog; monthly base prefilled from trainee salary so HR can bump it).
+  - Hired → read-only (link to employee in Operations).
+- Bulk actions respect the current stage's next step.
+- Reject button still available on any non-hired stage.
 
-## 3. Redesign Pipeline UI for 100 CVs/day
+### 3. Organization settings
+- Add a "Default trainee salary (MMK)" field on `src/routes/_authenticated/organization.tsx` (admin only), wired through a new `set_org_default_trainee_salary` RPC.
 
-Replace the single flat table with a workflow that scales:
+### 4. Operations visibility (verify, fix if needed)
+- Operations already reads from `employees`, which `approve_candidate` populates. Confirm the query is scoped to `current_org_id()` so cross-org users don't see empty lists, and surface a "Newly hired" badge for employees with `join_date = today` so the user sees the flow worked end-to-end.
 
-**Top bar (sticky):**
-- Bulk CV drop zone always visible (not hidden behind a dialog). Drop 20 PDFs → background queue with progress toasts.
-- Search by name/email/skill (debounced, server-side `ilike`).
-- Filters: role, stage, min AI score (slider), date range.
-- Sort: AI score / newest / name.
-- Counts per stage shown as pill tabs: `Screening 47 · Interview 12 · Hired 3`.
-
-**Main view — tabbed list per stage (not kanban):**
-Kanban with 100 cards/column is unusable; tabs + dense table scales better. Each tab shows only that stage's candidates, paginated 25/page, sorted by AI score desc by default.
-
-Row layout (denser, action-first):
-```text
-[ ✓ ] Name · email          Role        ████░ 82%   Skills(3)   [Advance] [Reject] [⋯]
-```
-
-- Checkbox column for bulk actions: bulk advance, bulk reject, bulk assign role.
-- Row click → side drawer with full notes/skills/CV summary; no full page nav.
-- Reject = red ghost button with `confirm()` ("Delete candidate permanently?").
-
-**Add candidate dialog:**
-- Default tab = Upload (current manual is the exception).
-- Allow multi-file drop with per-file progress + retry on failure.
-- Role picker stays; add "apply to all" toggle for bulk uploads.
-
-## 4. Out of scope (this turn)
-
-- Email/calendar integration for interview scheduling.
-- Candidate-facing portal.
-- Resume re-scoring on role change.
-
-## Technical summary
-
-- **Migration**: rebuild `candidate_status` enum to 4 values, remap rows, add `delete_rejected_candidate()` trigger.
-- **`pipeline.tsx`**: rewrite stage constants, replace single table with stage tabs + filter bar + bulk actions, switch `getOrgId` to `rpc('current_org_id')`, add Reject button, drop Approve dialog gate on `interview → hired` (it stays — needed for employee creation).
-- **`operations.functions.ts`**: no change; `approve_candidate` already handles `interview → hired`.
-- Keep realtime subscription as-is.
+## Out of scope
+- Trainee performance tracking, probation timers, automatic promotion.
+- Separate trainee payroll line (trainees are not employees yet, so no payroll is generated for them — by design of "Trainee only in Pipeline").
 
 ## Files touched
-
-- `supabase/migrations/<new>.sql` — enum collapse + reject trigger
-- `src/routes/_authenticated/pipeline.tsx` — full rewrite of list/filter UI, getOrgId fix, reject action
-- `src/integrations/supabase/types.ts` — regenerated after migration
+- `supabase/migrations/<new>.sql` — enum value, two columns, RPC for default salary.
+- `src/routes/_authenticated/pipeline.tsx` — Trainee tab, dialog, actions.
+- `src/routes/_authenticated/organization.tsx` — default salary setting.
+- `src/routes/_authenticated/operations.tsx` — minor: "Newly hired" badge + org-scope check.
+- `src/integrations/supabase/types.ts` — regenerated post-migration.

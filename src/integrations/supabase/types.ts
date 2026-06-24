@@ -103,6 +103,7 @@ export type Database = {
           role_applied: string
           skills: string[]
           status: Database["public"]["Enums"]["candidate_status"]
+          trainee_salary_mmk: number | null
           updated_at: string
         }
         Insert: {
@@ -117,6 +118,7 @@ export type Database = {
           role_applied: string
           skills?: string[]
           status?: Database["public"]["Enums"]["candidate_status"]
+          trainee_salary_mmk?: number | null
           updated_at?: string
         }
         Update: {
@@ -131,6 +133,7 @@ export type Database = {
           role_applied?: string
           skills?: string[]
           status?: Database["public"]["Enums"]["candidate_status"]
+          trainee_salary_mmk?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -404,18 +407,21 @@ export type Database = {
       organizations: {
         Row: {
           created_at: string
+          default_trainee_salary_mmk: number
           id: string
           name: string
           updated_at: string
         }
         Insert: {
           created_at?: string
+          default_trainee_salary_mmk?: number
           id?: string
           name: string
           updated_at?: string
         }
         Update: {
           created_at?: string
+          default_trainee_salary_mmk?: number
           id?: string
           name?: string
           updated_at?: string
@@ -830,12 +836,21 @@ export type Database = {
         Args: { _employee_id: string; _period: string }
         Returns: undefined
       }
+      set_org_default_trainee_salary: {
+        Args: { _amount: number }
+        Returns: undefined
+      }
       switch_my_org: { Args: { _org_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin" | "recruiter" | "hr" | "finance"
       attendance_status: "present" | "late" | "absent" | "leave"
-      candidate_status: "screening" | "interview" | "hired" | "rejected"
+      candidate_status:
+        | "screening"
+        | "interview"
+        | "trainee"
+        | "hired"
+        | "rejected"
       department: "HR" | "Operations" | "Finance" | "Admin" | "Engineering"
       meeting_status:
         | "uploaded"
@@ -980,7 +995,13 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "recruiter", "hr", "finance"],
       attendance_status: ["present", "late", "absent", "leave"],
-      candidate_status: ["screening", "interview", "hired", "rejected"],
+      candidate_status: [
+        "screening",
+        "interview",
+        "trainee",
+        "hired",
+        "rejected",
+      ],
       department: ["HR", "Operations", "Finance", "Admin", "Engineering"],
       meeting_status: [
         "uploaded",

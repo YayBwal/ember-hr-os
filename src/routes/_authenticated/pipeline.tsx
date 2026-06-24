@@ -32,12 +32,13 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
-const STAGES = ["screening", "interview", "hired"] as const;
+const STAGES = ["screening", "interview", "trainee", "hired"] as const;
 type Stage = (typeof STAGES)[number] | "rejected";
 
 const STAGE_LABELS: Record<Stage, string> = {
   screening: "Screening",
   interview: "Interview",
+  trainee: "Trainee",
   hired: "Hired",
   rejected: "Rejected",
 };
@@ -63,6 +64,7 @@ type Candidate = {
   notes: string | null;
   skills: string[] | null;
   next_action: string | null;
+  trainee_salary_mmk: number | null;
 };
 
 const PAGE_SIZE = 25;
@@ -100,17 +102,28 @@ function PipelinePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action")
+        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk")
         .order("ai_match_score", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Candidate[];
     },
   });
 
+  const { data: orgDefaults } = useQuery({
+    queryKey: ["org-defaults"],
+    queryFn: async () => {
+      const orgId = (await supabase.rpc("current_org_id")).data as string | null;
+      if (!orgId) return { default_trainee_salary_mmk: 500000 };
+      const { data } = await supabase.from("organizations").select("default_trainee_salary_mmk").eq("id", orgId).maybeSingle();
+      return { default_trainee_salary_mmk: Number(data?.default_trainee_salary_mmk ?? 500000) };
+    },
+  });
+  const defaultTraineeSalary = orgDefaults?.default_trainee_salary_mmk ?? 500000;
+
   const all = candidates ?? [];
 
   const counts = useMemo(() => {
-    const c: Record<Stage, number> = { screening: 0, interview: 0, hired: 0, rejected: 0 };
+    const c: Record<Stage, number> = { screening: 0, interview: 0, trainee: 0, hired: 0, rejected: 0 };
     for (const x of all) c[x.status] = (c[x.status] ?? 0) + 1;
     return c;
   }, [all]);
@@ -157,7 +170,10 @@ function PipelinePage() {
 
   function advanceOne(c: Candidate) {
     if (c.status === "screening") update.mutate({ ids: [c.id], status: "interview" });
-    else if (c.status === "interview") setApproving(c);
+    else if (c.status === "interview" || c.status === "trainee") setApproving(c);
+  }
+  function moveToTrainee(ids: string[]) {
+    update.mutate({ ids, status: "trainee" });
   }
 
   function reject(ids: string[]) {
@@ -267,6 +283,16 @@ function PipelinePage() {
                   <ArrowRight className="h-3.5 w-3.5" /> Move to Interview
                 </Button>
               )}
+              {activeStage === "interview" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => moveToTrainee(Array.from(selected))}
+                  className="gap-1.5"
+                >
+                  <ArrowRight className="h-3.5 w-3.5" /> Move to Trainee
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -352,21 +378,47 @@ function PipelinePage() {
                   {c.next_action ?? "—"}
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-1">
-                  {c.status !== "hired" && (
+                  {c.status === "screening" && (
                     <button
                       onClick={() => advanceOne(c)}
                       className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
                     >
-                      {c.status === "screening" ? "→ Interview" : "Hire"}
+                      → Interview
                     </button>
                   )}
-                  <button
-                    onClick={() => reject([c.id])}
-                    className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                    title="Reject & delete"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  {c.status === "interview" && (
+                    <>
+                      <button
+                        onClick={() => moveToTrainee([c.id])}
+                        className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
+                      >
+                        → Trainee
+                      </button>
+                      <button
+                        onClick={() => setApproving(c)}
+                        className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                      >
+                        Hire
+                      </button>
+                    </>
+                  )}
+                  {c.status === "trainee" && (
+                    <button
+                      onClick={() => setApproving(c)}
+                      className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                    >
+                      Promote → Hired
+                    </button>
+                  )}
+                  {c.status !== "hired" && (
+                    <button
+                      onClick={() => reject([c.id])}
+                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                      title="Reject & delete"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
               </div>
             ))
@@ -384,7 +436,7 @@ function PipelinePage() {
       </div>
 
       <AddCandidateDialog open={open} onOpenChange={setOpen} />
-      <ApproveDialog candidate={approving} onClose={() => setApproving(null)} />
+      <ApproveDialog candidate={approving} defaultBase={approving?.trainee_salary_mmk ?? defaultTraineeSalary} onClose={() => setApproving(null)} />
     </AppShell>
   );
 }
@@ -681,12 +733,15 @@ function MatchBar({ score }: { score: number }) {
   );
 }
 
-function ApproveDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+function ApproveDialog({ candidate, defaultBase, onClose }: { candidate: Candidate | null; defaultBase?: number; onClose: () => void }) {
   const qc = useQueryClient();
   const approve = useServerFn(approveCandidate);
   const [department, setDepartment] = useState<"HR" | "Operations" | "Finance" | "Admin" | "Engineering">("Engineering");
   const [position, setPosition] = useState("");
   const [base, setBase] = useState<string>("1500000");
+  useEffect(() => {
+    if (candidate) setBase(String(defaultBase ?? candidate.trainee_salary_mmk ?? 1500000));
+  }, [candidate, defaultBase]);
 
   const submit = useMutation({
     mutationFn: () =>

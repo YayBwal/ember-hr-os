@@ -100,6 +100,33 @@ function OrganizationPage() {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const myOrgSettings = useQuery({
+    queryKey: ["my-org-settings", me.data?.org_id],
+    enabled: !!me.data?.org_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("organizations")
+        .select("default_trainee_salary_mmk")
+        .eq("id", me.data!.org_id!)
+        .maybeSingle();
+      return data;
+    },
+  });
+  const [traineeSalary, setTraineeSalary] = useState<string>("");
+  const currentDefault = myOrgSettings.data?.default_trainee_salary_mmk;
+  const setDefaultTrainee = useMutation({
+    mutationFn: async (amount: number) => {
+      const { error } = await supabase.rpc("set_org_default_trainee_salary", { _amount: amount });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast.success("Default trainee salary updated");
+      qc.invalidateQueries({ queryKey: ["my-org-settings"] });
+      qc.invalidateQueries({ queryKey: ["org-defaults"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   const orgOptions = useMemo(() => orgs.data ?? [], [orgs.data]);
   const isAdminError = (orgs.error as Error | undefined)?.message?.toLowerCase().includes("forbidden");
 
@@ -164,6 +191,34 @@ function OrganizationPage() {
                 >
                   <Plus className="h-4 w-4" /> Create & switch
                 </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Trainee salary default */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Trainee defaults</CardTitle>
+              <CardDescription>Default monthly salary (MMK) used when moving candidates into the Trainee stage. Override per person in Pipeline.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <Input
+                  type="number"
+                  placeholder={currentDefault ? String(currentDefault) : "500000"}
+                  value={traineeSalary}
+                  onChange={(e) => setTraineeSalary(e.target.value)}
+                  className="sm:max-w-xs"
+                />
+                <Button
+                  onClick={() => setDefaultTrainee.mutate(Number(traineeSalary))}
+                  disabled={!traineeSalary || setDefaultTrainee.isPending}
+                >
+                  Save default
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  Current: {currentDefault ? `${currentDefault.toLocaleString()} MMK` : "—"}
+                </span>
               </div>
             </CardContent>
           </Card>
