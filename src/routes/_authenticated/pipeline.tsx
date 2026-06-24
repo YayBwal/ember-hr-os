@@ -58,6 +58,7 @@ type Candidate = {
 function PipelinePage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [approving, setApproving] = useState<Candidate | null>(null);
   const { q } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [searchInput, setSearchInput] = useState(q ?? "");
