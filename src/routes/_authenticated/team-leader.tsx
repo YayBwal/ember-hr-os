@@ -11,11 +11,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, Upload, Save, Crown } from "lucide-react";
+import { Loader2, Send, Upload, Save, Crown, Plus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { initials } from "@/lib/format";
 import { useHasRole } from "@/hooks/use-user-roles";
 import { saveTeamReport, rateMember } from "@/lib/teams.functions";
+import { createTask, updateTask } from "@/lib/delivery.functions";
 
 export const Route = createFileRoute("/_authenticated/team-leader")({
   head: () => ({ meta: [{ title: "Team Leader Hub · Mandai" }] }),
