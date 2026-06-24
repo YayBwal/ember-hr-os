@@ -330,7 +330,7 @@ function PromotionsTab() {
               const last = lastPromotionFor(e.id);
               const open = expanded === e.id;
               return (
-                <>
+                <Fragment key={e.id}>
                   <tr key={e.id} className="border-t border-border">
                     <td className="px-4 py-3">
                       <div className="font-medium">{e.full_name}</div>
