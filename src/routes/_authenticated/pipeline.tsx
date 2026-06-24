@@ -170,7 +170,10 @@ function PipelinePage() {
 
   function advanceOne(c: Candidate) {
     if (c.status === "screening") update.mutate({ ids: [c.id], status: "interview" });
-    else if (c.status === "interview") setApproving(c);
+    else if (c.status === "interview" || c.status === "trainee") setApproving(c);
+  }
+  function moveToTrainee(ids: string[]) {
+    update.mutate({ ids, status: "trainee" });
   }
 
   function reject(ids: string[]) {
