@@ -91,7 +91,7 @@ export function VoiceAssistant() {
     if (!Ctor) return;
     try {
       const rec = new Ctor();
-      rec.lang = "my-MM";
+      rec.lang = sttLang;
       rec.interimResults = false;
       rec.maxAlternatives = 1;
       rec.continuous = false;
