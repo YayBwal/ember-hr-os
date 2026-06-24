@@ -203,21 +203,19 @@ function PipelinePage() {
                   {c.next_action ?? "—"}
                 </div>
                 <div className="col-span-1 flex items-center justify-end gap-1">
-                  {c.status !== "onboarded" && (
-                    <button
-                      onClick={() => setApproving(c)}
-                      title="Approve & create employee"
-                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
-                    >
-                      <UserCheck className="h-3 w-3" />
-                    </button>
-                  )}
                   {nextStage(c.status) && (
                     <button
-                      onClick={() => advance.mutate({ id: c.id, status: nextStage(c.status)! })}
+                      onClick={() => {
+                        const next = nextStage(c.status)!;
+                        if (next === "approved") {
+                          setApproving(c);
+                        } else {
+                          advance.mutate({ id: c.id, status: next });
+                        }
+                      }}
                       className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
                     >
-                      → {nextStage(c.status)}
+                      → {STAGE_LABELS[nextStage(c.status)!]}
                     </button>
                   )}
                 </div>
