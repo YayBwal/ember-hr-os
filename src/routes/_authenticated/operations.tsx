@@ -19,7 +19,8 @@ import { toast } from "sonner";
 import { Loader2, Plus, Users, Trophy, UserPlus, Calendar } from "lucide-react";
 import { formatMMKCompact, initials } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
-import { createTeam, deleteTeam, assignMember, removeMember, logAttendance, setProductivityQuality } from "@/lib/operations.functions";
+import { createTeam, deleteTeam, logAttendance, setProductivityQuality } from "@/lib/operations.functions";
+import { TeamDetailSheet } from "@/components/team-detail-sheet";
 
 export const Route = createFileRoute("/_authenticated/operations")({
   head: () => ({ meta: [{ title: "Operations · Mandai" }] }),
@@ -411,10 +412,9 @@ function TeamsBoard() {
   const qc = useQueryClient();
   const create = useServerFn(createTeam);
   const del = useServerFn(deleteTeam);
-  const assign = useServerFn(assignMember);
-  const remove = useServerFn(removeMember);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<{ name: string; department: Dept }>({ name: "", department: "Engineering" });
+  const [openTeam, setOpenTeam] = useState<Team | null>(null);
 
   const { data: teams } = useQuery({
     queryKey: ["teams"],
@@ -424,7 +424,7 @@ function TeamsBoard() {
     },
   });
   const { data: members } = useQuery({
-    queryKey: ["team_members"],
+    queryKey: ["team_members_all"],
     queryFn: async () => {
       const { data } = await supabase.from("team_members").select("team_id,employee_id");
       return data ?? [];
@@ -433,8 +433,8 @@ function TeamsBoard() {
   const { data: employees } = useQuery({
     queryKey: ["employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("employees").select("id,full_name,position,team_id");
-      return data ?? [];
+      const { data } = await supabase.from("employees").select("id,full_name,email,position,team_id,performance_score");
+      return (data ?? []) as Array<{ id: string; full_name: string; email: string | null; position: string | null; team_id: string | null; performance_score: number | null }>;
     },
   });
   const { data: tasksByTeam } = useQuery({
@@ -491,49 +491,39 @@ function TeamsBoard() {
           const memberEmps = (employees ?? []).filter((e) => memberIds.has(e.id));
           const stats = tasksByTeam?.[t.id] ?? { active: 0, done: 0 };
           const rate = stats.active + stats.done > 0 ? Math.round((stats.done / (stats.active + stats.done)) * 100) : 0;
-          const available = (employees ?? []).filter((e) => !memberIds.has(e.id));
+          const lead = (employees ?? []).find((e) => e.id === t.team_lead_employee_id);
+          const avgKpi = memberEmps.length > 0 ? Math.round(memberEmps.reduce((s, e) => s + (Number(e.performance_score) || 0), 0) / memberEmps.length) : 0;
           return (
-            <div key={t.id} className="rounded-xl border border-border bg-card p-4">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-xs font-mono uppercase text-muted-foreground">{t.department}</div>
-                  <div className="font-display text-lg font-semibold">{t.name}</div>
-                </div>
-                <Button size="sm" variant="ghost" onClick={() => {
-                  if (confirm(`Delete team "${t.name}"?`)) del({ data: { id: t.id } }).then(() => qc.invalidateQueries({ queryKey: ["teams"] }));
-                }}>Delete</Button>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                <Stat label="Members" value={memberEmps.length} />
-                <Stat label="Active" value={stats.active} />
-                <Stat label="Done" value={stats.done} />
-              </div>
-              <div className="mt-3">
-                <div className="flex justify-between text-xs"><span className="text-muted-foreground">Completion</span><span>{rate}%</span></div>
-                <Progress value={rate} className="mt-1 h-1.5" />
-              </div>
-              <div className="mt-3 space-y-1">
-                {memberEmps.map((e) => (
-                  <div key={e.id} className="flex items-center justify-between rounded border border-border px-2 py-1 text-xs">
-                    <div className="flex items-center gap-2"><Avatar className="h-5 w-5"><AvatarFallback className="text-[10px]">{initials(e.full_name)}</AvatarFallback></Avatar>{e.full_name}</div>
-                    <button className="text-muted-foreground hover:text-destructive" onClick={() => remove({ data: { teamId: t.id, employeeId: e.id } }).then(() => qc.invalidateQueries({ queryKey: ["team_members"] }))}>remove</button>
+            <div key={t.id} className="rounded-xl border border-border bg-card p-4 transition hover:border-primary/40">
+              <button className="block w-full text-left" onClick={() => setOpenTeam(t)}>
+                <div className="flex items-start justify-between">
+                  <div>
+                    <div className="text-xs font-mono uppercase text-muted-foreground">{t.department}</div>
+                    <div className="font-display text-lg font-semibold">{t.name}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">TL: {lead?.full_name ?? "— unassigned —"}</div>
                   </div>
-                ))}
-              </div>
-              {available.length > 0 && (
-                <div className="mt-3 flex items-center gap-2">
-                  <Select onValueChange={(v) => assign({ data: { teamId: t.id, employeeId: v } }).then(() => qc.invalidateQueries({ queryKey: ["team_members"] }))}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="+ Add member" /></SelectTrigger>
-                    <SelectContent>{available.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}</SelectContent>
-                  </Select>
-                  <UserPlus className="h-4 w-4 text-muted-foreground" />
                 </div>
-              )}
+                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                  <Stat label="Members" value={memberEmps.length} />
+                  <Stat label="Active" value={stats.active} />
+                  <Stat label="Done" value={stats.done} />
+                </div>
+                <div className="mt-3">
+                  <div className="flex justify-between text-xs"><span className="text-muted-foreground">Completion</span><span>{rate}%</span></div>
+                  <Progress value={rate} className="mt-1 h-1.5" />
+                </div>
+                <div className="mt-2 flex justify-between text-xs"><span className="text-muted-foreground">Avg KPI</span><span className="font-mono">{avgKpi}</span></div>
+              </button>
+              <div className="mt-3 flex justify-end">
+                <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); if (confirm(`Delete team "${t.name}"?`)) del({ data: { id: t.id } }).then(() => qc.invalidateQueries({ queryKey: ["teams"] })); }}>Delete</Button>
+              </div>
             </div>
           );
         })}
         {(teams?.length ?? 0) === 0 && <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">No teams yet.</div>}
       </div>
+
+      <TeamDetailSheet team={openTeam} allEmployees={(employees ?? []) as never} onClose={() => setOpenTeam(null)} />
     </div>
   );
 }
