@@ -102,17 +102,28 @@ function PipelinePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action")
+        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk")
         .order("ai_match_score", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Candidate[];
     },
   });
 
+  const { data: orgDefaults } = useQuery({
+    queryKey: ["org-defaults"],
+    queryFn: async () => {
+      const orgId = (await supabase.rpc("current_org_id")).data as string | null;
+      if (!orgId) return { default_trainee_salary_mmk: 500000 };
+      const { data } = await supabase.from("organizations").select("default_trainee_salary_mmk").eq("id", orgId).maybeSingle();
+      return { default_trainee_salary_mmk: Number(data?.default_trainee_salary_mmk ?? 500000) };
+    },
+  });
+  const defaultTraineeSalary = orgDefaults?.default_trainee_salary_mmk ?? 500000;
+
   const all = candidates ?? [];
 
   const counts = useMemo(() => {
-    const c: Record<Stage, number> = { screening: 0, interview: 0, hired: 0, rejected: 0 };
+    const c: Record<Stage, number> = { screening: 0, interview: 0, trainee: 0, hired: 0, rejected: 0 };
     for (const x of all) c[x.status] = (c[x.status] ?? 0) + 1;
     return c;
   }, [all]);
