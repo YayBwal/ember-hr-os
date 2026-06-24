@@ -71,10 +71,10 @@ function DashboardPage() {
             <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Operating snapshot</h1>
           </div>
           <Link
-            to="/delivery"
+            to="/operations"
             className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90"
           >
-            <Sparkles className="h-3.5 w-3.5" /> Run AI on a meeting
+            <Sparkles className="h-3.5 w-3.5" /> Open Operations
           </Link>
         </div>
 
@@ -102,8 +102,8 @@ function DashboardPage() {
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               {[
                 { to: "/pipeline", label: "Pipeline", blurb: "AI-scored candidates → onboarding" },
-                { to: "/operations", label: "Operations", blurb: "Workforce KPIs & directory" },
-                { to: "/delivery", label: "Delivery", blurb: "Meeting → tasks → completion" },
+                { to: "/operations", label: "Operations", blurb: "Teams, tasks, reports & KPIs" },
+                { to: "/team-leader", label: "Team Leader", blurb: "File reports & rate members" },
                 { to: "/financial", label: "Financial", blurb: "MMK payroll, tied to performance" },
               ].map((m) => (
                 <Link

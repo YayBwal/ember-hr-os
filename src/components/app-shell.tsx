@@ -4,7 +4,7 @@ import {
   LayoutDashboard,
   Users,
   Workflow,
-  AudioLines,
+  Crown,
   Wallet,
   LogOut,
   Settings,
@@ -37,7 +37,7 @@ const NAV = [
   { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/pipeline", label: "Pipeline", icon: Users },
   { to: "/operations", label: "Operations", icon: Workflow },
-  { to: "/delivery", label: "Delivery", icon: AudioLines },
+  { to: "/team-leader", label: "Team Leader", icon: Crown },
   { to: "/financial", label: "Financial", icon: Wallet },
   { to: "/organization", label: "Organization", icon: Building2 },
 ] as const;
