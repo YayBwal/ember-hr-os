@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, UserCheck } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles } from "lucide-react";
 import { parseCv, scoreManual } from "@/lib/pipeline.functions";
 import { approveCandidate } from "@/lib/operations.functions";
 
@@ -29,8 +29,32 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
-const STAGES = ["new", "screening", "interview", "offer", "onboarded", "rejected"] as const;
+const STAGES = [
+  "sourcing",
+  "screening",
+  "hr_interview",
+  "technical_interview",
+  "assessment",
+  "final_interview",
+  "offer",
+  "approved",
+  "hired",
+  "rejected",
+] as const;
 type Stage = (typeof STAGES)[number];
+
+const STAGE_LABELS: Record<Stage, string> = {
+  sourcing: "sourcing",
+  screening: "screening",
+  hr_interview: "HR interview",
+  technical_interview: "tech interview",
+  assessment: "assessment",
+  final_interview: "final",
+  offer: "offer",
+  approved: "approved",
+  hired: "hired",
+  rejected: "rejected",
+};
 
 const ROLE_PRESETS = [
   "Software Engineer",
@@ -62,6 +86,20 @@ function PipelinePage() {
   const { q } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [searchInput, setSearchInput] = useState(q ?? "");
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("candidates-realtime")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "candidates" },
+        () => qc.invalidateQueries({ queryKey: ["candidates"] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [qc]);
 
   const { data: candidates, isLoading } = useQuery({
     queryKey: ["candidates"],
@@ -179,21 +217,19 @@ function PipelinePage() {
                   {c.next_action ?? "—"}
                 </div>
                 <div className="col-span-1 flex items-center justify-end gap-1">
-                  {c.status !== "onboarded" && (
-                    <button
-                      onClick={() => setApproving(c)}
-                      title="Approve & create employee"
-                      className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-medium text-emerald-700 hover:bg-emerald-500/20 dark:text-emerald-300"
-                    >
-                      <UserCheck className="h-3 w-3" />
-                    </button>
-                  )}
                   {nextStage(c.status) && (
                     <button
-                      onClick={() => advance.mutate({ id: c.id, status: nextStage(c.status)! })}
+                      onClick={() => {
+                        const next = nextStage(c.status)!;
+                        if (next === "approved") {
+                          setApproving(c);
+                        } else {
+                          advance.mutate({ id: c.id, status: next });
+                        }
+                      }}
                       className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
                     >
-                      → {nextStage(c.status)}
+                      → {STAGE_LABELS[nextStage(c.status)!]}
                     </button>
                   )}
                 </div>
@@ -254,14 +290,14 @@ function AddCandidateDialog({
   const [email, setEmail] = useState("");
   const [skillsText, setSkillsText] = useState("");
   const [notes, setNotes] = useState("");
-  const [stage, setStage] = useState<Stage>("new");
+  const [stage, setStage] = useState<Stage>("sourcing");
 
   function reset() {
     setFullName("");
     setEmail("");
     setSkillsText("");
     setNotes("");
-    setStage("new");
+    setStage("sourcing");
     setCustomRole("");
     setRole(ROLE_PRESETS[0]);
     setBusy(false);
@@ -306,7 +342,7 @@ function AddCandidateDialog({
               full_name: parsed.full_name,
               email: parsed.email,
               role_applied: finalRole,
-              status: "new",
+              status: "sourcing",
               ai_match_score: parsed.ai_match_score,
               skills: parsed.skills,
               next_action: parsed.next_action,
@@ -489,7 +525,7 @@ function AddCandidateDialog({
                 <Select value={stage} onValueChange={(v) => setStage(v as Stage)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {STAGES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                    {STAGES.map((s) => <SelectItem key={s} value={s}>{STAGE_LABELS[s]}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -532,7 +568,17 @@ function fileToBase64(file: File): Promise<string> {
 }
 
 function nextStage(s: Stage): Stage | null {
-  const order: Stage[] = ["new", "screening", "interview", "offer", "onboarded"];
+  const order: Stage[] = [
+    "sourcing",
+    "screening",
+    "hr_interview",
+    "technical_interview",
+    "assessment",
+    "final_interview",
+    "offer",
+    "approved",
+    "hired",
+  ];
   const idx = order.indexOf(s);
   if (idx === -1 || idx >= order.length - 1) return null;
   return order[idx + 1];
@@ -540,16 +586,18 @@ function nextStage(s: Stage): Stage | null {
 
 function StageBadge({ status }: { status: Stage }) {
   const tone =
-    status === "onboarded"
+    status === "hired"
       ? "bg-success/15 text-success"
-      : status === "offer"
-        ? "bg-primary/10 text-primary"
-        : status === "rejected"
-          ? "bg-muted text-muted-foreground"
-          : "bg-accent/40 text-accent-foreground";
+      : status === "approved"
+        ? "bg-primary/15 text-primary"
+        : status === "offer"
+          ? "bg-primary/10 text-primary"
+          : status === "rejected"
+            ? "bg-muted text-muted-foreground"
+            : "bg-accent/40 text-accent-foreground";
   return (
     <span className={`rounded px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${tone}`}>
-      {status}
+      {STAGE_LABELS[status]}
     </span>
   );
 }

@@ -811,11 +811,15 @@ export type Database = {
       app_role: "admin" | "recruiter" | "hr" | "finance"
       attendance_status: "present" | "late" | "absent" | "leave"
       candidate_status:
-        | "new"
+        | "sourcing"
         | "screening"
-        | "interview"
+        | "hr_interview"
+        | "technical_interview"
+        | "assessment"
+        | "final_interview"
         | "offer"
-        | "onboarded"
+        | "approved"
+        | "hired"
         | "rejected"
       department: "HR" | "Operations" | "Finance" | "Admin" | "Engineering"
       meeting_status:
@@ -962,11 +966,15 @@ export const Constants = {
       app_role: ["admin", "recruiter", "hr", "finance"],
       attendance_status: ["present", "late", "absent", "leave"],
       candidate_status: [
-        "new",
+        "sourcing",
         "screening",
-        "interview",
+        "hr_interview",
+        "technical_interview",
+        "assessment",
+        "final_interview",
         "offer",
-        "onboarded",
+        "approved",
+        "hired",
         "rejected",
       ],
       department: ["HR", "Operations", "Finance", "Admin", "Engineering"],
