@@ -35,6 +35,7 @@ type Employee = {
   performance_score: number; attendance_pct: number;
   team_id: string | null; join_date: string | null;
   phone: string | null; avatar_url: string | null; salary_grade: string | null;
+  level: "junior" | "mid" | "senior" | "lead";
 };
 type Team = { id: string; name: string; department: Dept; team_lead_employee_id: string | null };
 type Kpi = { employee_id: string; period_month: string; task_completion: number; productivity: number; quality: number; attendance: number; kpi: number };
@@ -78,7 +79,7 @@ function Leaderboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, full_name, email, department, position, monthly_base_mmk, performance_score, attendance_pct, team_id, join_date, phone, avatar_url, salary_grade");
+        .select("id, full_name, email, department, position, monthly_base_mmk, performance_score, attendance_pct, team_id, join_date, phone, avatar_url, salary_grade, level");
       if (error) throw error;
       return (data ?? []) as Employee[];
     },
@@ -183,7 +184,10 @@ function Leaderboard() {
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8"><AvatarFallback>{initials(r.emp.full_name)}</AvatarFallback></Avatar>
                     <div>
-                      <div className="font-medium">{r.emp.full_name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{r.emp.full_name}</span>
+                        <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{r.emp.level}</span>
+                      </div>
                       <div className="text-xs text-muted-foreground">{r.emp.position}</div>
                     </div>
                   </div>

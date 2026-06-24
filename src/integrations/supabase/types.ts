@@ -228,6 +228,69 @@ export type Database = {
           },
         ]
       }
+      employee_promotions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          effective_date: string
+          employee_id: string
+          from_base_mmk: number | null
+          from_level: Database["public"]["Enums"]["employee_level"] | null
+          from_position: string | null
+          id: string
+          note: string | null
+          org_id: string
+          to_base_mmk: number
+          to_level: Database["public"]["Enums"]["employee_level"]
+          to_position: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string
+          employee_id: string
+          from_base_mmk?: number | null
+          from_level?: Database["public"]["Enums"]["employee_level"] | null
+          from_position?: string | null
+          id?: string
+          note?: string | null
+          org_id: string
+          to_base_mmk: number
+          to_level: Database["public"]["Enums"]["employee_level"]
+          to_position: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          effective_date?: string
+          employee_id?: string
+          from_base_mmk?: number | null
+          from_level?: Database["public"]["Enums"]["employee_level"] | null
+          from_position?: string | null
+          id?: string
+          note?: string | null
+          org_id?: string
+          to_base_mmk?: number
+          to_level?: Database["public"]["Enums"]["employee_level"]
+          to_position?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_promotions_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "employee_promotions_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employees: {
         Row: {
           attendance_pct: number
@@ -239,6 +302,7 @@ export type Database = {
           full_name: string
           id: string
           join_date: string
+          level: Database["public"]["Enums"]["employee_level"]
           monthly_base_mmk: number
           org_id: string
           performance_score: number
@@ -259,6 +323,7 @@ export type Database = {
           full_name: string
           id?: string
           join_date?: string
+          level?: Database["public"]["Enums"]["employee_level"]
           monthly_base_mmk?: number
           org_id: string
           performance_score?: number
@@ -279,6 +344,7 @@ export type Database = {
           full_name?: string
           id?: string
           join_date?: string
+          level?: Database["public"]["Enums"]["employee_level"]
           monthly_base_mmk?: number
           org_id?: string
           performance_score?: number
@@ -410,6 +476,7 @@ export type Database = {
           default_trainee_salary_mmk: number
           id: string
           name: string
+          salary_bands: Json
           updated_at: string
         }
         Insert: {
@@ -417,6 +484,7 @@ export type Database = {
           default_trainee_salary_mmk?: number
           id?: string
           name: string
+          salary_bands?: Json
           updated_at?: string
         }
         Update: {
@@ -424,6 +492,7 @@ export type Database = {
           default_trainee_salary_mmk?: number
           id?: string
           name?: string
+          salary_bands?: Json
           updated_at?: string
         }
         Relationships: []
@@ -828,6 +897,17 @@ export type Database = {
         }
         Returns: boolean
       }
+      promote_employee: {
+        Args: {
+          _effective_date?: string
+          _employee_id: string
+          _note?: string
+          _to_base_mmk: number
+          _to_level: Database["public"]["Enums"]["employee_level"]
+          _to_position: string
+        }
+        Returns: string
+      }
       recompute_employee_kpi: {
         Args: { _employee_id: string; _period: string }
         Returns: undefined
@@ -852,6 +932,7 @@ export type Database = {
         | "hired"
         | "rejected"
       department: "HR" | "Operations" | "Finance" | "Admin" | "Engineering"
+      employee_level: "junior" | "mid" | "senior" | "lead"
       meeting_status:
         | "uploaded"
         | "transcribing"
@@ -1003,6 +1084,7 @@ export const Constants = {
         "rejected",
       ],
       department: ["HR", "Operations", "Finance", "Admin", "Engineering"],
+      employee_level: ["junior", "mid", "senior", "lead"],
       meeting_status: [
         "uploaded",
         "transcribing",
