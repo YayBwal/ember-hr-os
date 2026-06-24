@@ -26,6 +26,10 @@ const signInSchema = z.object({
   password: z.string().min(6, "Min 6 characters").max(128),
 });
 
+const resetSchema = z.object({
+  email: z.string().trim().email("Enter a valid email").max(255),
+});
+
 const signUpSchema = z.object({
   org: z.string().trim().min(1, "Organization required").max(100),
   full_name: z.string().trim().min(1, "Name required").max(100),
@@ -40,8 +44,9 @@ function AuthPage() {
   const [oauthLoading, setOauthLoading] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate({ to: "/dashboard" });
+    supabase.auth.getUser().then(({ data, error }) => {
+      if (data.user) navigate({ to: "/dashboard" });
+      if (error) supabase.auth.signOut({ scope: "local" });
     });
   }, [navigate]);
 
@@ -58,13 +63,47 @@ function AuthPage() {
     }
     setLoading(true);
     const { error } = await supabase.auth.signInWithPassword(parsed.data);
+    if (error) {
+      setLoading(false);
+      toast.error(
+        error.message === "Invalid login credentials"
+          ? "Invalid email or password. If this account was created with Google, use Google sign-in or reset your password."
+          : error.message,
+      );
+      return;
+    }
+
+    const { error: userError } = await supabase.auth.getUser();
     setLoading(false);
+    if (userError) {
+      await supabase.auth.signOut({ scope: "local" });
+      toast.error("This saved session is no longer valid. Please sign in again.");
+      return;
+    }
+
+    toast.success("Welcome back");
+    navigate({ to: "/dashboard" });
+  }
+
+  async function handlePasswordReset(email: FormDataEntryValue | null) {
+    const parsed = resetSchema.safeParse({ email });
+    if (!parsed.success) {
+      toast.error(parsed.error.issues[0].message);
+      return;
+    }
+
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(parsed.data.email, {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    setLoading(false);
+
     if (error) {
       toast.error(error.message);
       return;
     }
-    toast.success("Welcome back");
-    navigate({ to: "/dashboard" });
+
+    toast.success("Password reset email sent");
   }
 
   async function handleSignUp(e: React.FormEvent<HTMLFormElement>) {
@@ -81,7 +120,7 @@ function AuthPage() {
       return;
     }
     setLoading(true);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: parsed.data.email,
       password: parsed.data.password,
       options: {
@@ -95,6 +134,11 @@ function AuthPage() {
     setLoading(false);
     if (error) {
       toast.error(error.message);
+      return;
+    }
+    if (!data.session) {
+      toast.success("Workspace created — check your email to confirm your account.");
+      setMode("signin");
       return;
     }
     toast.success("Workspace created — you're signed in.");
@@ -179,6 +223,19 @@ function AuthPage() {
                 <div className="space-y-1.5">
                   <Label htmlFor="si-password">Password</Label>
                   <Input id="si-password" name="password" type="password" autoComplete="current-password" required />
+                </div>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-primary underline-offset-4 hover:underline"
+                    onClick={(event) => {
+                      const form = event.currentTarget.form;
+                      handlePasswordReset(form ? new FormData(form).get("email") : null);
+                    }}
+                    disabled={loading}
+                  >
+                    Forgot password?
+                  </button>
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign in"}
