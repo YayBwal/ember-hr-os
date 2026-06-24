@@ -184,7 +184,10 @@ function Leaderboard() {
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8"><AvatarFallback>{initials(r.emp.full_name)}</AvatarFallback></Avatar>
                     <div>
-                      <div className="font-medium">{r.emp.full_name}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{r.emp.full_name}</span>
+                        <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{r.emp.level}</span>
+                      </div>
                       <div className="text-xs text-muted-foreground">{r.emp.position}</div>
                     </div>
                   </div>
