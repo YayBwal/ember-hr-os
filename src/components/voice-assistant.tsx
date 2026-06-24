@@ -3,7 +3,13 @@ import { Mic, MicOff, Phone, Loader2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
+import { useRouter } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { voiceChat } from "@/lib/voice.functions";
+
+type Action =
+  | { type: "navigate"; to: string }
+  | { type: "highlight_candidates"; ids: string[] };
 
 type Status = "idle" | "listening" | "thinking" | "speaking" | "error";
 type Line = { id: string; who: "you" | "ai"; text: string };
@@ -27,6 +33,9 @@ export function VoiceAssistant() {
   const historyRef = useRef<{ role: "user" | "assistant"; content: string }[]>([]);
   const shouldListenRef = useRef(false);
   const chat = useServerFn(voiceChat);
+  const router = useRouter();
+  const qc = useQueryClient();
+  const [sttLang, setSttLang] = useState<"my-MM" | "en-US">("my-MM");
 
   const supported =
     typeof window !== "undefined" &&
@@ -38,25 +47,51 @@ export function VoiceAssistant() {
       if (!("speechSynthesis" in window)) return resolve();
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = "my-MM";
+      // Detect Burmese characters (U+1000–U+109F) to pick TTS voice/lang.
+      const hasBurmese = /[\u1000-\u109F]/.test(text);
+      u.lang = hasBurmese ? "my-MM" : "en-US";
       u.rate = 1;
       u.pitch = 1;
-      // Try to pick a Burmese voice if available
       const voices = window.speechSynthesis.getVoices();
-      const my = voices.find((v) => v.lang?.toLowerCase().startsWith("my"));
-      if (my) u.voice = my;
+      const match = voices.find((v) =>
+        hasBurmese ? v.lang?.toLowerCase().startsWith("my") : v.lang?.toLowerCase().startsWith("en"),
+      );
+      if (match) u.voice = match;
       u.onend = () => resolve();
       u.onerror = () => resolve();
       window.speechSynthesis.speak(u);
     });
   }, []);
 
+  const runActions = useCallback(
+    (actions: Action[] | undefined) => {
+      if (!actions) return;
+      for (const a of actions) {
+        if (a.type === "navigate") {
+          try {
+            const [path, search] = a.to.split("?");
+            const params: Record<string, string> = {};
+            if (search) {
+              for (const [k, v] of new URLSearchParams(search)) params[k] = v;
+            }
+            router.navigate({ to: path as any, search: params as any });
+          } catch (e) {
+            console.warn("navigate failed", e);
+          }
+        } else if (a.type === "highlight_candidates") {
+          qc.invalidateQueries({ queryKey: ["candidates"] });
+        }
+      }
+    },
+    [router, qc],
+  );
+
   const startListening = useCallback(() => {
     const Ctor = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!Ctor) return;
     try {
       const rec = new Ctor();
-      rec.lang = "my-MM";
+      rec.lang = sttLang;
       rec.interimResults = false;
       rec.maxAlternatives = 1;
       rec.continuous = false;
@@ -85,9 +120,10 @@ export function VoiceAssistant() {
         historyRef.current.push({ role: "user", content: text });
         setStatus("thinking");
         try {
-          const { reply } = await chat({ data: { messages: historyRef.current } });
+          const { reply, actions } = await chat({ data: { messages: historyRef.current } });
           historyRef.current.push({ role: "assistant", content: reply });
           setLines((p) => [...p, { id: crypto.randomUUID(), who: "ai", text: reply }]);
+          runActions(actions as Action[] | undefined);
           setStatus("speaking");
           await speak(reply);
         } catch (err: any) {
@@ -110,7 +146,7 @@ export function VoiceAssistant() {
       setStatus("error");
       setTimeout(() => setStatus("idle"), 1500);
     }
-  }, [chat, speak]);
+  }, [chat, speak, runActions, sttLang]);
 
   const start = useCallback(async () => {
     if (!supported) {
@@ -207,6 +243,22 @@ export function VoiceAssistant() {
               <Button size="sm" variant={muted ? "default" : "outline"} onClick={toggleMute} className="h-8">
                 {muted ? <MicOff className="h-3.5 w-3.5" /> : <Mic className="h-3.5 w-3.5" />}
               </Button>
+              <div className="flex items-center gap-1 text-[10px] font-mono uppercase tracking-[0.18em]">
+                <button
+                  type="button"
+                  onClick={() => setSttLang("my-MM")}
+                  className={`px-1.5 py-0.5 rounded ${sttLang === "my-MM" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  MY
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSttLang("en-US")}
+                  className={`px-1.5 py-0.5 rounded ${sttLang === "en-US" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                >
+                  EN
+                </button>
+              </div>
               <Button size="sm" variant="destructive" onClick={hangup} className="h-8 ml-auto">
                 <Phone className="h-3.5 w-3.5 mr-1.5 rotate-[135deg]" /> End
               </Button>
