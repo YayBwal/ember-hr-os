@@ -54,15 +54,35 @@ export const parseCv = createServerFn({ method: "POST" })
     const apiKey = process.env.LOVABLE_API_KEY;
     if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
 
-    const supported = new Set([
-      "application/pdf",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      "application/msword",
-      "text/plain",
-    ]);
-    const mime = supported.has(data.mime) ? data.mime : "application/pdf";
-
     const userPrompt = PARSE_PROMPT.replace("{ROLE}", data.role);
+
+    // Gemini's file input only reliably supports PDFs and a few image/audio types.
+    // DOCX/DOC are not accepted — ask the user to convert. TXT can be inlined as text.
+    let content: unknown[];
+    if (data.mime === "application/pdf") {
+      content = [
+        { type: "text", text: userPrompt },
+        {
+          type: "file",
+          file: {
+            filename: data.filename,
+            file_data: `data:application/pdf;base64,${data.fileBase64}`,
+          },
+        },
+      ];
+    } else if (data.mime === "text/plain") {
+      let decoded = "";
+      try {
+        decoded = Buffer.from(data.fileBase64, "base64").toString("utf-8");
+      } catch {
+        throw new Error("Could not read text file");
+      }
+      content = [
+        { type: "text", text: `${userPrompt}\n\n--- CV TEXT ---\n${decoded.slice(0, 60000)}` },
+      ];
+    } else {
+      throw new Error("Unsupported file type — please upload a PDF or TXT (convert DOCX to PDF first)");
+    }
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -73,24 +93,11 @@ export const parseCv = createServerFn({ method: "POST" })
       },
       body: JSON.stringify({
         model: "google/gemini-3-flash-preview",
-        messages: [
-          {
-            role: "user",
-            content: [
-              { type: "text", text: userPrompt },
-              {
-                type: "file",
-                file: {
-                  filename: data.filename,
-                  file_data: `data:${mime};base64,${data.fileBase64}`,
-                },
-              },
-            ],
-          },
-        ],
+        messages: [{ role: "user", content }],
         response_format: { type: "json_object" },
       }),
     });
+
 
     if (!res.ok) {
       const errText = await res.text().catch(() => "");
