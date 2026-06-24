@@ -85,12 +85,14 @@ export const Route = createFileRoute("/api/public/agent/tools")({
             case "move_task": {
               const { task_id, status } = args;
               if (!task_id || !status) return Response.json({ error: "task_id + status required" }, { status: 400 });
-              const update: Record<string, unknown> = { status };
-              if (status === "done") update.completed_at = new Date().toISOString();
+              const update = {
+                status: status as "todo" | "in_progress" | "review" | "done",
+                ...(status === "done" ? { completed_at: new Date().toISOString() } : {}),
+              };
               const { data, error } = await supabaseAdmin
                 .from("tasks")
                 .update(update)
-                .eq("id", task_id)
+                .eq("id", String(task_id))
                 .eq("org_id", orgId)
                 .select("id, title, status")
                 .single();
