@@ -79,7 +79,7 @@ function Leaderboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, full_name, email, department, position, monthly_base_mmk, performance_score, attendance_pct, team_id, join_date, phone, avatar_url, salary_grade");
+        .select("id, full_name, email, department, position, monthly_base_mmk, performance_score, attendance_pct, team_id, join_date, phone, avatar_url, salary_grade, level");
       if (error) throw error;
       return (data ?? []) as Employee[];
     },
