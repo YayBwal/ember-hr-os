@@ -12,13 +12,14 @@ export const approveCandidate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { candidateId: string; department: Dept; position: string; monthlyBase: number; teamId?: string | null }) => d)
   .handler(async ({ data, context }) => {
-    const { data: empId, error } = await context.supabase.rpc("approve_candidate", {
+    const args: { _candidate_id: string; _department: Dept; _position: string; _monthly_base: number; _team_id?: string } = {
       _candidate_id: data.candidateId,
       _department: data.department,
       _position: data.position,
       _monthly_base: data.monthlyBase,
-      _team_id: data.teamId ?? null,
-    });
+    };
+    if (data.teamId) args._team_id = data.teamId;
+    const { data: empId, error } = await context.supabase.rpc("approve_candidate", args);
     if (error) throw new Error(error.message);
     return { employeeId: empId as string };
   });
