@@ -596,7 +596,7 @@ function AddCandidateDialog({
                 ref={fileRef}
                 type="file"
                 multiple
-                accept=".pdf,.docx,.doc,.txt,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/msword,text/plain"
+                accept=".pdf,.txt,application/pdf,text/plain"
                 className="hidden"
                 onChange={(e) => e.target.files && handleFiles(e.target.files)}
               />
