@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiLivekitTokenRouteImport } from './routes/api/livekit-token'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
+import { Route as AuthenticatedOrganizationRouteImport } from './routes/_authenticated/organization'
 import { Route as AuthenticatedOperationsRouteImport } from './routes/_authenticated/operations'
 import { Route as AuthenticatedFinancialRouteImport } from './routes/_authenticated/financial'
 import { Route as AuthenticatedDeliveryRouteImport } from './routes/_authenticated/delivery'
@@ -56,6 +57,12 @@ const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
   path: '/pipeline',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedOrganizationRoute =
+  AuthenticatedOrganizationRouteImport.update({
+    id: '/organization',
+    path: '/organization',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedOperationsRoute = AuthenticatedOperationsRouteImport.update({
   id: '/operations',
   path: '/operations',
@@ -90,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/delivery': typeof AuthenticatedDeliveryRoute
   '/financial': typeof AuthenticatedFinancialRoute
   '/operations': typeof AuthenticatedOperationsRoute
+  '/organization': typeof AuthenticatedOrganizationRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
@@ -103,6 +111,7 @@ export interface FileRoutesByTo {
   '/delivery': typeof AuthenticatedDeliveryRoute
   '/financial': typeof AuthenticatedFinancialRoute
   '/operations': typeof AuthenticatedOperationsRoute
+  '/organization': typeof AuthenticatedOrganizationRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
@@ -118,6 +127,7 @@ export interface FileRoutesById {
   '/_authenticated/delivery': typeof AuthenticatedDeliveryRoute
   '/_authenticated/financial': typeof AuthenticatedFinancialRoute
   '/_authenticated/operations': typeof AuthenticatedOperationsRoute
+  '/_authenticated/organization': typeof AuthenticatedOrganizationRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
@@ -133,6 +143,7 @@ export interface FileRouteTypes {
     | '/delivery'
     | '/financial'
     | '/operations'
+    | '/organization'
     | '/pipeline'
     | '/settings'
     | '/api/livekit-token'
@@ -146,6 +157,7 @@ export interface FileRouteTypes {
     | '/delivery'
     | '/financial'
     | '/operations'
+    | '/organization'
     | '/pipeline'
     | '/settings'
     | '/api/livekit-token'
@@ -160,6 +172,7 @@ export interface FileRouteTypes {
     | '/_authenticated/delivery'
     | '/_authenticated/financial'
     | '/_authenticated/operations'
+    | '/_authenticated/organization'
     | '/_authenticated/pipeline'
     | '/_authenticated/settings'
     | '/api/livekit-token'
@@ -226,6 +239,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPipelineRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/organization': {
+      id: '/_authenticated/organization'
+      path: '/organization'
+      fullPath: '/organization'
+      preLoaderRoute: typeof AuthenticatedOrganizationRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/operations': {
       id: '/_authenticated/operations'
       path: '/operations'
@@ -269,6 +289,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDeliveryRoute: typeof AuthenticatedDeliveryRoute
   AuthenticatedFinancialRoute: typeof AuthenticatedFinancialRoute
   AuthenticatedOperationsRoute: typeof AuthenticatedOperationsRoute
+  AuthenticatedOrganizationRoute: typeof AuthenticatedOrganizationRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
 }
@@ -278,6 +299,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDeliveryRoute: AuthenticatedDeliveryRoute,
   AuthenticatedFinancialRoute: AuthenticatedFinancialRoute,
   AuthenticatedOperationsRoute: AuthenticatedOperationsRoute,
+  AuthenticatedOrganizationRoute: AuthenticatedOrganizationRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
 }
