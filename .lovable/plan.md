@@ -1,103 +1,91 @@
-
 ## Goal
 
-Make the Recruitment Pipeline → Operations handoff fully automated and live-synced, while keeping every unrelated module untouched. The candidate row stays the single source of truth (employees already link via `employees.candidate_id`).
+Make the Pipeline page survive a realistic recruiter day (50–100 CVs), fix the "no organisation found" error on Add Candidate, and collapse the hiring funnel from 10 stages to 4.
 
-## 1. Database migration — expand stages + auto-onboard
+## 1. Simplify stages to 4 (DB + UI)
 
-Extend the `candidate_status` enum and migrate existing rows:
+New `candidate_status` enum:
 
 ```text
-old enum:  new | screening | interview | offer | onboarded | rejected
-new enum:  sourcing | screening | hr_interview | technical_interview
-         | assessment | final_interview | offer | approved | hired | rejected
+screening  →  interview  →  hired
+                           ↘ rejected (auto-deleted)
 ```
 
-Mapping for existing data:
-- `new` → `sourcing`
-- `interview` → `hr_interview`
-- `onboarded` → `hired`
-- others unchanged
+**Migration:**
+- Add new enum values `screening`, `interview` if missing; map existing rows:
+  - `sourcing`, `screening` → `screening`
+  - `hr_interview`, `technical_interview`, `assessment`, `final_interview`, `offer`, `approved` → `interview`
+  - `hired` → `hired`
+  - `rejected` → delete row
+- Drop old enum values (recreate enum: rename old, create new, alter column, drop old).
+- Trigger: `AFTER UPDATE ON candidates WHEN status = 'rejected' → DELETE`. This makes "Reject" a one-click destructive action that wipes the candidate per your spec.
 
-Update `approve_candidate(...)` RPC: instead of hard-coding `status = 'onboarded'`, set it to `'hired'`. Behavior otherwise identical (still creates employee, triggers cascade KPI/payroll/attendance).
+**UI stage flow:**
+- `screening → interview`: one-click advance.
+- `interview → hired`: opens the existing Approve dialog (department / position / salary / team) which already creates the `employees` row via `approve_candidate` RPC.
+- Reject button visible at every stage (red, with confirm) → sets `status='rejected'`, trigger deletes.
 
-No new tables. No changes to `employees`, `attendance`, `payroll_*`, `employee_kpis`, `tasks`, `profiles`, `organizations`, RLS, or grants.
+## 2. Fix "No organisation found" on Add Candidate
 
-## 2. Pipeline UI — `src/routes/_authenticated/pipeline.tsx`
+Current code (`pipeline.tsx` line 307):
 
-Only file edited on the frontend.
-
-- Replace `STAGES` const and `Stage` type with the 10-value list.
-- Replace `nextStage()` order: `sourcing → screening → hr_interview → technical_interview → assessment → final_interview → offer → approved → hired` (rejected is a terminal side-branch, reached only via explicit reject).
-- `StageBadge`: extend tone map to color `approved` (primary), `hired` (success), interview stages (accent).
-- **Auto-onboarding hook**: when the user clicks "→ approved" (the advance button), do NOT call the plain status mutation. Instead open the existing `ApproveDialog` pre-filled with that candidate; on confirm, `approveCandidate` server fn runs (sets status to `hired` via the updated RPC and creates the employee atomically). The current standalone "UserCheck" button is removed — advancing into Approved IS the approval.
-- Advancing from `approved → hired` (rare; usually skipped since approve jumps straight to hired): show as no-op confirmation toast since employee already exists.
-- All other transitions remain the simple `update({ status })` mutation with optimistic refetch.
-- Reject action: keep current behavior (no change required; if there is no reject button today, leave it).
-
-## 3. Realtime subscriptions
-
-Enable Postgres changes broadcasting:
-
-```sql
-ALTER PUBLICATION supabase_realtime ADD TABLE public.candidates;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
+```ts
+supabase.from("profiles").select("org_id").maybeSingle()
 ```
 
-In `pipeline.tsx`, add one `useEffect` that subscribes to `postgres_changes` on `public.candidates` and calls `qc.invalidateQueries({ queryKey: ["candidates"] })` on any event. Cleanup on unmount with `supabase.removeChannel`.
+`.maybeSingle()` without `.eq("id", auth.uid())` returns null when RLS exposes 0 rows or >1 rows (e.g., admin who can see all profiles). Replace with the existing `current_org_id()` SECURITY DEFINER function:
 
-In the operations / directory page that already lists employees (`src/routes/_authenticated/operations.tsx` — read-only check, no other edits), add the same shape of subscription for `public.employees` so a newly-onboarded employee appears without refresh. This is the only touch outside the pipeline file, and it is additive (one `useEffect`), required to satisfy "Employee instantly appears in Employee Directory".
-
-## 4. Out of scope (explicitly deferred per your answers)
-
-- No `person` table — `employees.candidate_id` remains the link.
-- No LinkedIn import.
-- No extended resume fields (experience/education/certs/languages).
-- No Recruiter / Evaluation / Recommendation columns.
-- No changes to `parseCv`, `scoreManual`, Add Candidate dialog, attendance/payroll/KPI logic, RLS, or grants.
-
-## Technical details
-
-**Migration SQL outline** (single migration, runs in one transaction):
-
-```sql
--- 1. Extend enum (Postgres requires ADD VALUE outside txn for some versions;
---    use ALTER TYPE ... ADD VALUE IF NOT EXISTS per value, then a second
---    migration step renames old values via a temp enum swap).
-CREATE TYPE candidate_status_new AS ENUM
-  ('sourcing','screening','hr_interview','technical_interview',
-   'assessment','final_interview','offer','approved','hired','rejected');
-
-ALTER TABLE public.candidates
-  ALTER COLUMN status TYPE candidate_status_new
-  USING (CASE status::text
-    WHEN 'new' THEN 'sourcing'
-    WHEN 'interview' THEN 'hr_interview'
-    WHEN 'onboarded' THEN 'hired'
-    ELSE status::text
-  END)::candidate_status_new;
-
-DROP TYPE candidate_status;
-ALTER TYPE candidate_status_new RENAME TO candidate_status;
-
--- 2. Patch approve_candidate to mark candidate as 'hired'
-CREATE OR REPLACE FUNCTION public.approve_candidate(...) ...
-  -- identical body, but final UPDATE sets status = 'hired'
-
--- 3. Realtime
-ALTER PUBLICATION supabase_realtime ADD TABLE public.candidates;
-ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
+```ts
+const { data, error } = await supabase.rpc("current_org_id");
+if (error || !data) throw new Error("No organisation found");
+return data as string;
 ```
 
-**Files changed:**
-- `supabase/migrations/<new>.sql` (created)
-- `src/routes/_authenticated/pipeline.tsx` (edited — stages, advance handler, realtime)
-- `src/routes/_authenticated/operations.tsx` (edited — add employees realtime subscription only)
+Same fix applied in both `handleFiles` and `submitManual`.
 
-**Files unchanged:** `operations.functions.ts`, `pipeline.functions.ts`, all other routes, auth, RLS, types (regenerated automatically after migration).
+## 3. Redesign Pipeline UI for 100 CVs/day
 
-## Acceptance
+Replace the single flat table with a workflow that scales:
 
-- Clicking "→ approved" on any candidate opens the salary/department dialog; confirming creates the employee in one server call, candidate row flips to `hired`, the employee directory updates without a refresh, KPI/payroll/attendance rows are created by existing triggers.
-- All 10 stages render with badges; existing candidates are visible under their migrated stages.
-- No regressions in attendance logging, payroll, team management, auth, or other routes.
+**Top bar (sticky):**
+- Bulk CV drop zone always visible (not hidden behind a dialog). Drop 20 PDFs → background queue with progress toasts.
+- Search by name/email/skill (debounced, server-side `ilike`).
+- Filters: role, stage, min AI score (slider), date range.
+- Sort: AI score / newest / name.
+- Counts per stage shown as pill tabs: `Screening 47 · Interview 12 · Hired 3`.
+
+**Main view — tabbed list per stage (not kanban):**
+Kanban with 100 cards/column is unusable; tabs + dense table scales better. Each tab shows only that stage's candidates, paginated 25/page, sorted by AI score desc by default.
+
+Row layout (denser, action-first):
+```text
+[ ✓ ] Name · email          Role        ████░ 82%   Skills(3)   [Advance] [Reject] [⋯]
+```
+
+- Checkbox column for bulk actions: bulk advance, bulk reject, bulk assign role.
+- Row click → side drawer with full notes/skills/CV summary; no full page nav.
+- Reject = red ghost button with `confirm()` ("Delete candidate permanently?").
+
+**Add candidate dialog:**
+- Default tab = Upload (current manual is the exception).
+- Allow multi-file drop with per-file progress + retry on failure.
+- Role picker stays; add "apply to all" toggle for bulk uploads.
+
+## 4. Out of scope (this turn)
+
+- Email/calendar integration for interview scheduling.
+- Candidate-facing portal.
+- Resume re-scoring on role change.
+
+## Technical summary
+
+- **Migration**: rebuild `candidate_status` enum to 4 values, remap rows, add `delete_rejected_candidate()` trigger.
+- **`pipeline.tsx`**: rewrite stage constants, replace single table with stage tabs + filter bar + bulk actions, switch `getOrgId` to `rpc('current_org_id')`, add Reject button, drop Approve dialog gate on `interview → hired` (it stays — needed for employee creation).
+- **`operations.functions.ts`**: no change; `approve_candidate` already handles `interview → hired`.
+- Keep realtime subscription as-is.
+
+## Files touched
+
+- `supabase/migrations/<new>.sql` — enum collapse + reject trigger
+- `src/routes/_authenticated/pipeline.tsx` — full rewrite of list/filter UI, getOrgId fix, reject action
+- `src/integrations/supabase/types.ts` — regenerated after migration
