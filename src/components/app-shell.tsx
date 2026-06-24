@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   Users,
   Workflow,
-  Crown,
   Wallet,
   LogOut,
   Settings,
