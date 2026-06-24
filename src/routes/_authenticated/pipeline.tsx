@@ -166,7 +166,7 @@ function PipelinePage() {
   }
 
   function setStage(s: Stage) {
-    navigate({ search: (prev) => ({ ...prev, stage: s }), replace: true });
+    navigate({ search: (prev: any) => ({ ...prev, stage: s }), replace: true });
   }
 
   const allSelected = pageRows.length > 0 && pageRows.every((r) => selected.has(r.id));
@@ -220,7 +220,7 @@ function PipelinePage() {
             value={searchInput}
             onChange={(e) => {
               setSearchInput(e.target.value);
-              navigate({ search: (prev) => ({ ...prev, q: e.target.value || undefined }), replace: true });
+              navigate({ search: (prev: any) => ({ ...prev, q: e.target.value || undefined }), replace: true });
             }}
             placeholder="Search name, email, or skill…"
             className="max-w-xs"
