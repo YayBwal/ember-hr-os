@@ -168,12 +168,12 @@ function Leaderboard() {
             <tr>
               <th className="px-4 py-3 text-left">Rank</th>
               <th className="px-4 py-3 text-left">Employee</th>
-              <th className="px-4 py-3 text-left">Dept</th>
+              <th className="px-4 py-3 text-left">Department</th>
               <th className="px-4 py-3 text-left">Team</th>
               <th className="px-4 py-3 text-right">KPI</th>
               <th className="px-4 py-3 text-right">Task %</th>
-              <th className="px-4 py-3 text-right">Att. %</th>
-              <th className="px-4 py-3 text-left">Telegram</th>
+              <th className="px-4 py-3 text-right">Attendance %</th>
+              <th className="px-4 py-3 text-left">Telegram Status</th>
             </tr>
           </thead>
           <tbody>
@@ -227,23 +227,21 @@ function Leaderboard() {
                   <span className="truncate font-medium">{r.emp.full_name}</span>
                 </div>
                 <div className="truncate text-xs text-muted-foreground">{r.emp.position}</div>
+                <div className="truncate text-[11px] uppercase tracking-wider text-muted-foreground/80">{r.emp.department}</div>
               </div>
               {r.emp.telegram_chat_id
                 ? <Badge className="shrink-0 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15">Linked</Badge>
                 : <Badge variant="outline" className="shrink-0 text-muted-foreground">Not Linked</Badge>}
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+            <div className="my-3 border-t border-border" />
+            <div className="grid grid-cols-2 gap-2 text-center">
               <div className="rounded-lg bg-muted/40 px-2 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-muted-foreground">KPI</div>
                 <div className="text-base font-semibold">{r.kpi.toFixed(1)}</div>
               </div>
               <div className="rounded-lg bg-muted/40 px-2 py-2">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Task</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Task %</div>
                 <div className="text-base font-semibold">{r.taskCompletion.toFixed(0)}%</div>
-              </div>
-              <div className="rounded-lg bg-muted/40 px-2 py-2">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Att.</div>
-                <div className="text-base font-semibold">{r.attendance.toFixed(0)}%</div>
               </div>
             </div>
           </button>
