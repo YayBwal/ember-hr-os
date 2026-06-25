@@ -13,7 +13,13 @@ export function VoiceAssistant() {
   const [lines, setLines] = useState<Line[]>([]);
   const [muted, setMuted] = useState(false);
   const sessionRef = useRef<GeminiLiveSession | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines]);
 
   const handleEvent = useCallback(
     (e: LiveEvent) => {
