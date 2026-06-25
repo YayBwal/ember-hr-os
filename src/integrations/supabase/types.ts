@@ -815,6 +815,7 @@ export type Database = {
           created_at: string
           generated_at: string
           id: string
+          last_recomputed_at: string | null
           org_id: string
           period_month: string
           total_mmk: number
@@ -823,6 +824,7 @@ export type Database = {
           created_at?: string
           generated_at?: string
           id?: string
+          last_recomputed_at?: string | null
           org_id: string
           period_month: string
           total_mmk?: number
@@ -831,6 +833,7 @@ export type Database = {
           created_at?: string
           generated_at?: string
           id?: string
+          last_recomputed_at?: string | null
           org_id?: string
           period_month?: string
           total_mmk?: number
