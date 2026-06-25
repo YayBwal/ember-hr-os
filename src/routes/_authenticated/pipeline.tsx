@@ -62,6 +62,7 @@ type Candidate = {
   held_at: string | null;
   source: string | null;
   cv_storage_path: string | null;
+  telegram_chat_id: number | null;
 };
 
 const PAGE_SIZE = 25;
