@@ -409,12 +409,15 @@ function PromoteDialog({
   qc: QueryClient;
   promote: ReturnType<typeof useServerFn<typeof promoteEmployee>>;
 }) {
-  const nextLevel: EmployeeLevel = useMemo(() => {
+  const currentLevel: EmployeeLevel = useMemo(() => {
     if (!emp) return "junior";
-    const current = emp.level === "mid" ? "junior" : emp.level;
-    const idx = LEVELS.indexOf(current as EmployeeLevel);
-    return LEVELS[Math.min(Math.max(idx, 0) + 1, LEVELS.length - 1)];
+    return (emp.level === "mid" ? "junior" : emp.level) as EmployeeLevel;
   }, [emp]);
+
+  const nextLevel: EmployeeLevel = useMemo(() => {
+    const idx = LEVELS.indexOf(currentLevel);
+    return LEVELS[Math.min(Math.max(idx, 0) + 1, LEVELS.length - 1)];
+  }, [currentLevel]);
 
   const [level, setLevel] = useState<EmployeeLevel>(nextLevel);
   const [salary, setSalary] = useState("");
@@ -422,22 +425,37 @@ function PromoteDialog({
   const [reason, setReason] = useState("");
   const manuallyEdited = useRef(false);
 
+  const direction = LEVELS.indexOf(level) - LEVELS.indexOf(currentLevel);
+  const isPromotion = direction > 0;
+  const isDemotion = direction < 0;
+
+  const autoSalaryFor = (lvl: EmployeeLevel): number | null => {
+    if (!emp) return null;
+    const b = bands?.[lvl];
+    const dir = LEVELS.indexOf(lvl) - LEVELS.indexOf(currentLevel);
+    if (dir > 0) return b?.min && b.min > 0 ? b.min : null;
+    if (dir < 0) return b?.max && b.max > 0 ? b.max : null;
+    return emp.monthly_base_mmk;
+  };
+
   useEffect(() => {
     if (emp) {
       setLevel(nextLevel);
       setPosition(emp.position);
       setReason("");
       manuallyEdited.current = false;
-      const bandMin = bands?.[nextLevel]?.min;
-      setSalary(String(bandMin && bandMin > 0 ? bandMin : emp.monthly_base_mmk));
+      const auto = autoSalaryFor(nextLevel);
+      setSalary(String(auto && auto > 0 ? auto : emp.monthly_base_mmk));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp, nextLevel, bands]);
 
   // Auto-fill salary when level changes (unless user manually edited)
   useEffect(() => {
     if (!emp || manuallyEdited.current) return;
-    const bandMin = bands?.[level]?.min;
-    if (bandMin && bandMin > 0) setSalary(String(bandMin));
+    const auto = autoSalaryFor(level);
+    if (auto && auto > 0) setSalary(String(auto));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level, bands, emp]);
 
   const mut = useMutation({
@@ -455,7 +473,10 @@ function PromoteDialog({
       if (ctx?.prevEmps) qc.setQueryData(["employees_fin"], ctx.prevEmps);
       toast.error(e.message);
     },
-    onSuccess: () => { toast.success("Promotion saved"); onClose(); },
+    onSuccess: () => {
+      toast.success(isDemotion ? "Demotion saved" : "Promotion saved");
+      onClose();
+    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["employees_fin"] });
       qc.invalidateQueries({ queryKey: ["promotions"] });
@@ -467,9 +488,26 @@ function PromoteDialog({
   if (!emp) return null;
   const band = bands?.[level];
   const salaryNum = Number(salary);
-  const belowMin = !!band && salaryNum > 0 && salaryNum < band.min;
-  const aboveMax = !!band && salaryNum > band.max;
-  const canSave = reason.trim().length > 0 && salaryNum > 0 && position.trim().length > 0 && !belowMin && !mut.isPending;
+  const positiveSalary = salaryNum > 0;
+  const belowMin = !!band && positiveSalary && salaryNum < band.min;
+  const aboveMax = !!band && positiveSalary && salaryNum > band.max;
+
+  let salaryError: string | null = null;
+  if (!positiveSalary) salaryError = "Salary required";
+  else if (band) {
+    if (isPromotion && belowMin) salaryError = `Promotion salary must be ≥ ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`;
+    else if (isPromotion && aboveMax) salaryError = `Above ${LEVEL_LABEL[level]} maximum (${formatMMKCompact(band.max)})`;
+    else if (isDemotion && aboveMax) salaryError = `Demotion salary must be ≤ ${LEVEL_LABEL[level]} maximum (${formatMMKCompact(band.max)})`;
+    else if (isDemotion && belowMin) salaryError = `Below ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`;
+  }
+
+  const sameLevel = direction === 0;
+  const canSave =
+    !sameLevel &&
+    reason.trim().length > 0 &&
+    position.trim().length > 0 &&
+    !salaryError &&
+    !mut.isPending;
 
   const save = () => {
     if (!canSave) return;
@@ -486,7 +524,11 @@ function PromoteDialog({
     <Dialog open={!!emp} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Promote {emp.full_name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Adjust Level — {emp.full_name}
+            {isPromotion && <Badge className="bg-primary/15 text-primary hover:bg-primary/15">Promotion</Badge>}
+            {isDemotion && <Badge variant="outline">Demotion</Badge>}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -494,7 +536,7 @@ function PromoteDialog({
           </div>
 
           <div>
-            <Label className="text-xs">Level</Label>
+            <Label className="text-xs">Target Level</Label>
             <div className="mt-1 grid grid-cols-4 gap-1 rounded-md border border-border bg-muted/30 p-1">
               {LEVELS.map((l) => (
                 <button
@@ -507,36 +549,41 @@ function PromoteDialog({
                 </button>
               ))}
             </div>
+            {sameLevel && (
+              <div className="mt-1 text-xs text-muted-foreground">Pick a different level to record a promotion or demotion.</div>
+            )}
           </div>
 
           <div>
-            <Label className="text-xs">Position <span className="text-destructive">*</span></Label>
+            <Label className="text-xs">Target Position <span className="text-destructive">*</span></Label>
             <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="e.g. Senior Engineer" />
           </div>
 
           <div>
-            <Label className="text-xs">Salary (MMK)</Label>
+            <Label className="text-xs">Target Salary (MMK) <span className="text-destructive">*</span></Label>
             <Input
               type="number"
               value={salary}
               onChange={(e) => { manuallyEdited.current = true; setSalary(e.target.value); }}
             />
-            {band && (
-              <div className={`mt-1 text-xs ${belowMin ? "text-destructive" : "text-muted-foreground"}`}>
-                {belowMin
-                  ? `Below ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`
-                  : <>Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}{aboveMax && " · above max"}</>}
+            {salaryError ? (
+              <div className="mt-1 text-xs text-destructive">{salaryError}</div>
+            ) : band ? (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}
               </div>
+            ) : (
+              <div className="mt-1 text-xs text-muted-foreground">No salary band configured for {LEVEL_LABEL[level]}.</div>
             )}
           </div>
 
           <div>
-            <Label className="text-xs">Reason <span className="text-destructive">*</span></Label>
+            <Label className="text-xs">Reason / Justification <span className="text-destructive">*</span></Label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
-              placeholder="Justification for this promotion"
+              placeholder={isDemotion ? "Justification for this demotion" : "Justification for this promotion"}
             />
           </div>
         </div>
