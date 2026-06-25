@@ -61,7 +61,10 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
                 <TabsTrigger value="members">Members</TabsTrigger>
                 <TabsTrigger value="tasks">Tasks</TabsTrigger>
                 <TabsTrigger value="reports">Reports</TabsTrigger>
-                <TabsTrigger value="peer">Peer Reviews</TabsTrigger>
+                <TabsTrigger value="peer" className="gap-1.5">
+                  <span>Peer Reviews</span>
+                  <PeerPendingBadge teamId={team.id} />
+                </TabsTrigger>
               </TabsList>
               <TabsContent value="members" className="mt-3"><MembersTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
               <TabsContent value="tasks" className="mt-3"><TeamTasksTab team={team} allEmployees={allEmployees} readOnly={isAdmin} /></TabsContent>
@@ -477,4 +480,23 @@ function PeerAggregates({ team, allEmployees, memberIds, period }: { team: Team;
       </div>
     </div>
   );
+}
+
+function PeerPendingBadge({ teamId }: { teamId: string }) {
+  const period = thisMonth().start;
+  const { data: pending } = useQuery({
+    queryKey: ["peer_pending_badge", teamId, period],
+    queryFn: async () => {
+      const [{ data: tm }, { data: pr }] = await Promise.all([
+        supabase.from("team_members").select("employee_id").eq("team_id", teamId),
+        supabase.from("peer_reviews").select("reviewer_employee_id").eq("team_id", teamId).eq("period_month", period),
+      ]);
+      const submitted = new Set((pr ?? []).map((r) => r.reviewer_employee_id));
+      let p = 0;
+      for (const m of tm ?? []) if (!submitted.has(m.employee_id)) p++;
+      return p;
+    },
+  });
+  if (!pending) return null;
+  return <Badge variant="default" className="h-4 min-w-4 px-1 text-[10px] leading-none">{pending}</Badge>;
 }

@@ -15,8 +15,9 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogT
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Loader2, Plus, Users, Trophy, UserPlus } from "lucide-react";
+import { Loader2, Plus, Users, Trophy, UserPlus, Info, ClipboardList } from "lucide-react";
 import { formatMMKCompact, initials } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
 import { createTeam, deleteTeam, logAttendance, setProductivityQuality } from "@/lib/operations.functions";
@@ -114,8 +115,24 @@ function Leaderboard() {
     },
   });
 
+  // Pending peer reviews this month: distinct (team_id, reviewer) pairs missing.
   const period = new Date(); period.setUTCDate(1);
   const periodKey = period.toISOString().slice(0, 10);
+  const { data: pendingReviews } = useQuery({
+    queryKey: ["pending_peer_reviews", periodKey],
+    queryFn: async () => {
+      const [{ data: tm }, { data: pr }] = await Promise.all([
+        supabase.from("team_members").select("team_id, employee_id"),
+        supabase.from("peer_reviews").select("team_id, reviewer_employee_id").eq("period_month", periodKey),
+      ]);
+      const submitted = new Set((pr ?? []).map((r) => `${r.team_id}:${r.reviewer_employee_id}`));
+      let pending = 0;
+      for (const m of tm ?? []) if (!submitted.has(`${m.team_id}:${m.employee_id}`)) pending++;
+      return pending;
+    },
+  });
+
+  
   const latestKpi = (id: string) => kpis?.find((k) => k.employee_id === id && k.period_month.startsWith(periodKey.slice(0, 7)));
 
   const rows = useMemo(() => {
@@ -157,6 +174,17 @@ function Leaderboard() {
             <SelectItem value="completed">Completed Tasks</SelectItem>
           </SelectContent>
         </Select>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant={pendingReviews && pendingReviews > 0 ? "default" : "outline"} className="ml-auto gap-1 cursor-help">
+                <ClipboardList className="h-3 w-3" />
+                {pendingReviews ?? 0} pending review{(pendingReviews ?? 0) === 1 ? "" : "s"}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>Team members who haven't submitted peer reviews this month.</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
@@ -338,7 +366,17 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
                 </div>
               </div>
               <div className="rounded-lg border border-border p-3">
-                <div className="text-xs font-mono uppercase text-muted-foreground">HR Override · Productivity &amp; Quality</div>
+                <div className="flex items-center gap-1.5 text-xs font-mono uppercase text-muted-foreground">
+                  <span>HR Override · Productivity &amp; Quality</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        HR-only manual adjustment that writes directly to the employee's monthly KPI and recomputes payroll. Use sparingly — Team Leader Ratings (in Team Leader Hub) are the primary performance signal.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <div className="mt-1 text-[11px] text-muted-foreground">Writes directly to monthly KPI and triggers payroll recompute. Team Leader ratings live in Team Leader Hub.</div>
                 <div className="mt-3 space-y-3">
                   <div>

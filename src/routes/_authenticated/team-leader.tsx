@@ -11,7 +11,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Send, Upload, Save, Crown, Plus } from "lucide-react";
+import { Loader2, Send, Upload, Save, Crown, Plus, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { initials } from "@/lib/format";
@@ -166,7 +167,17 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
           </div>
         </div>
         <div>
-          <Label className="text-xs">Rate members</Label>
+          <Label className="flex items-center gap-1.5 text-xs">
+            <span>Team Leader Rating · Productivity &amp; Quality</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Your direct rating of each member. This is the primary input to their monthly KPI (alongside attendance, task completion, and peer reviews). HR Override exists for exceptional cases only.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </Label>
           <div className="mt-1 space-y-2">
             {(members ?? []).map((m) => {
               const r = (ratings ?? []).find((x) => x.employee_id === m.id);
