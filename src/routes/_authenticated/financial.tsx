@@ -287,24 +287,6 @@ function PromotionsTab() {
         </div>
       </div>
 
-      {/* Suggestions */}
-      {suggestions.length > 0 && (
-        <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> Suggested promotions</div>
-          <p className="mt-1 text-xs text-muted-foreground">High KPI and overdue for a level bump.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {suggestions.slice(0, 6).map((e) => (
-              <button
-                key={e.id}
-                onClick={() => setPromoting(e)}
-                className="rounded-full border border-border bg-card px-3 py-1 text-xs hover:bg-accent"
-              >
-                {e.full_name} · KPI {(e.performance_score ?? 0).toFixed(0)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Employees table */}
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
