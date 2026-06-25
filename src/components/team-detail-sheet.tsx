@@ -26,6 +26,7 @@ import {
   rateMember,
   submitPeerReview,
 } from "@/lib/teams.functions";
+import { renameTeam } from "@/lib/operations.functions";
 import { createTask, updateTask } from "@/lib/delivery.functions";
 
 type Team = { id: string; name: string; department: string; team_lead_employee_id: string | null; org_id: string };
@@ -54,6 +55,7 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
                 <Badge variant="outline" className="text-xs">{team.department}</Badge>
               </SheetTitle>
             </SheetHeader>
+            {isAdmin && <RenameTeamRow team={team} />}
             <Tabs defaultValue="members" className="mt-4">
               <TabsList>
                 <TabsTrigger value="members">Members</TabsTrigger>
