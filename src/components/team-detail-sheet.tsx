@@ -61,16 +61,12 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
                 <TabsTrigger value="members">Members</TabsTrigger>
                 <TabsTrigger value="tasks">Tasks</TabsTrigger>
                 <TabsTrigger value="reports">Reports</TabsTrigger>
-                <TabsTrigger value="peer" className="gap-1.5">
-                  <span>Peer Reviews</span>
-                  <PeerPendingBadge teamId={team.id} />
-                </TabsTrigger>
               </TabsList>
               <TabsContent value="members" className="mt-3"><MembersTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
               <TabsContent value="tasks" className="mt-3"><TeamTasksTab team={team} allEmployees={allEmployees} readOnly={isAdmin} /></TabsContent>
               <TabsContent value="reports" className="mt-3"><ReportsTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
-              <TabsContent value="peer" className="mt-3"><PeerReviewTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
             </Tabs>
+
           </>
         )}
       </SheetContent>
