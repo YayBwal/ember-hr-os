@@ -168,12 +168,12 @@ function Leaderboard() {
             <tr>
               <th className="px-4 py-3 text-left">Rank</th>
               <th className="px-4 py-3 text-left">Employee</th>
-              <th className="px-4 py-3 text-left">Dept</th>
+              <th className="px-4 py-3 text-left">Department</th>
               <th className="px-4 py-3 text-left">Team</th>
               <th className="px-4 py-3 text-right">KPI</th>
               <th className="px-4 py-3 text-right">Task %</th>
-              <th className="px-4 py-3 text-right">Att. %</th>
-              <th className="px-4 py-3 text-left">Telegram</th>
+              <th className="px-4 py-3 text-right">Attendance %</th>
+              <th className="px-4 py-3 text-left">Telegram Status</th>
             </tr>
           </thead>
           <tbody>
