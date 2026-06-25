@@ -232,7 +232,7 @@ async function handleCvUpload(chatId: number, state: SessionState, doc: any) {
           await sb().from("candidates").delete().eq("id", created.id as string);
           await sb().storage.from("candidate-cvs").remove([storagePath]).catch(() => {});
 
-          const sameRole = others.find((o) => (o.role_applied ?? "") === role);
+          const sameRole = others.find((o: { role_applied: string | null }) => (o.role_applied ?? "") === role);
           const tooMany = others.length >= 3;
           const msg = tooMany
             ? `⚠️ <b>Too many applications</b>\n\nWe've received <b>${others.length}</b> applications from <code>${escapeHtml(parsed.email)}</code> already. Please wait for our team to review them before applying again.`
