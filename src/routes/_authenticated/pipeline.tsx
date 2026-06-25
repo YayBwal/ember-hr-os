@@ -46,16 +46,6 @@ const STAGE_LABELS: Record<Stage, string> = {
   rejected: "Rejected",
 };
 
-const ROLE_PRESETS = [
-  "Software Engineer",
-  "Senior Engineer",
-  "Product Manager",
-  "Designer",
-  "Operations Analyst",
-  "Finance Analyst",
-  "HR Specialist",
-  "Customer Success",
-];
 
 type Candidate = {
   id: string;
