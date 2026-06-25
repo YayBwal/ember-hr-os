@@ -43,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/feedbacks")({
   component: FeedbacksPage,
 });
 
-const DEPARTMENTS = ["engineering", "design", "operations", "sales", "marketing", "finance", "hr", "other"];
+const DEPARTMENTS = ["HR", "Operations", "Finance", "Admin", "Engineering"];
 
 function FeedbacksPage() {
   return (
