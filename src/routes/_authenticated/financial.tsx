@@ -559,3 +559,215 @@ function PromoteDialog({
     </Dialog>
   );
 }
+
+/* ---------------- KPI Calculation tab ---------------- */
+function KpiTab() {
+  const qc = useQueryClient();
+  const fetchKpi = useServerFn(getKpiDashboard);
+  const setType = useServerFn(setEmploymentType);
+
+  const [period, setPeriod] = useState<string>(() => {
+    const d = new Date(); d.setUTCDate(1);
+    return d.toISOString().slice(0, 7); // YYYY-MM
+  });
+  const [search, setSearch] = useState("");
+  const [dept, setDept] = useState<string>("all");
+  const [type, setTypeFilter] = useState<string>("all");
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const periodMonth = `${period}-01`;
+
+  const { data: rows, isLoading } = useQuery({
+    queryKey: ["kpi_dashboard", periodMonth],
+    queryFn: () => fetchKpi({ data: { periodMonth } }),
+    staleTime: 60_000,
+  });
+
+  const typeMut = useMutation({
+    mutationFn: (v: { employeeId: string; type: "remote" | "on_site" }) => setType({ data: v }),
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: ["kpi_dashboard", periodMonth] });
+      const prev = qc.getQueryData<KpiRow[]>(["kpi_dashboard", periodMonth]);
+      qc.setQueryData<KpiRow[]>(["kpi_dashboard", periodMonth], (old) =>
+        (old ?? []).map((r) => r.employee_id === v.employeeId ? { ...r, employment_type: v.type } : r),
+      );
+      return { prev };
+    },
+    onError: (e: Error, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["kpi_dashboard", periodMonth], ctx.prev);
+      toast.error(e.message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["kpi_dashboard", periodMonth] }),
+  });
+
+  const departments = useMemo(() => {
+    const s = new Set<string>();
+    (rows ?? []).forEach((r) => r.department && s.add(r.department));
+    return Array.from(s).sort();
+  }, [rows]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (rows ?? []).filter((r) => {
+      if (dept !== "all" && r.department !== dept) return false;
+      if (type !== "all" && r.employment_type !== type) return false;
+      if (q && !r.full_name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [rows, search, dept, type]);
+
+  const summary = useMemo(() => {
+    const list = filtered;
+    if (!list.length) return { avgKpi: 0, eligible: 0, avgAtt: 0, totalBonus: 0 };
+    const avgKpi = list.reduce((a, r) => a + Number(r.kpi_score), 0) / list.length;
+    const avgAtt = list.reduce((a, r) => a + Number(r.attendance_pct), 0) / list.length;
+    const eligible = list.filter((r) => r.bonus_eligible).length;
+    const totalBonus = list.reduce((a, r) => a + Number(r.bonus_amount_mmk), 0);
+    return { avgKpi, eligible, avgAtt, totalBonus };
+  }, [filtered]);
+
+  return (
+    <div className="space-y-4">
+      {/* Filters */}
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1">
+          <Label className="text-xs">Period</Label>
+          <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} className="h-9 w-[160px]" />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Department</Label>
+          <Select value={dept} onValueChange={setDept}>
+            <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All departments</SelectItem>
+              {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1">
+          <Label className="text-xs">Employment type</Label>
+          <Select value={type} onValueChange={setTypeFilter}>
+            <SelectTrigger className="h-9 w-[140px]"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="on_site">On-Site</SelectItem>
+              <SelectItem value="remote">Remote</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 flex-1 min-w-[200px]">
+          <Label className="text-xs">Search</Label>
+          <Input placeholder="Employee name" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9" />
+        </div>
+      </div>
+
+      {/* Summary cards */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <KpiCard label="Avg KPI" value={summary.avgKpi.toFixed(1)} suffix="%" />
+        <KpiCard label="Bonus Eligible" value={`${summary.eligible}`} suffix={` / ${filtered.length}`} />
+        <KpiCard label="Avg Attendance" value={summary.avgAtt.toFixed(1)} suffix="%" />
+        <KpiCard label="Projected Bonus" value={formatMMKCompact(summary.totalBonus)} />
+      </div>
+
+      {/* Table */}
+      <div className="overflow-x-auto rounded-xl border border-border bg-card">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+            <tr>
+              <th className="px-4 py-3 text-left">Employee</th>
+              <th className="px-4 py-3 text-left">Type</th>
+              <th className="px-4 py-3 text-right">Base</th>
+              <th className="px-4 py-3 text-right">Tasks</th>
+              <th className="px-4 py-3 text-right">Attendance</th>
+              <th className="px-4 py-3 text-right">Hours</th>
+              <th className="px-4 py-3 text-right">KPI</th>
+              <th className="px-4 py-3 text-center">Eligible</th>
+              <th className="px-4 py-3 text-right">Bonus</th>
+            </tr>
+          </thead>
+          <tbody>
+            {isLoading && (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+              </td></tr>
+            )}
+            {!isLoading && filtered.length === 0 && (
+              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No employees match the filters.</td></tr>
+            )}
+            {filtered.map((r) => {
+              const isOpen = expanded === r.employee_id;
+              return (
+                <Fragment key={r.employee_id}>
+                  <tr className="cursor-pointer border-t border-border hover:bg-muted/30" onClick={() => setExpanded(isOpen ? null : r.employee_id)}>
+                    <td className="px-4 py-3">
+                      <div className="font-medium">{r.full_name}</div>
+                      <div className="text-xs text-muted-foreground">{r.job_position} · {r.department}</div>
+                    </td>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                      <Select
+                        value={r.employment_type}
+                        onValueChange={(v) => typeMut.mutate({ employeeId: r.employee_id, type: v as "remote" | "on_site" })}
+                      >
+                        <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="on_site">On-Site</SelectItem>
+                          <SelectItem value="remote">Remote</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="px-4 py-3 text-right">{formatMMKCompact(r.base_salary_mmk)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className="font-medium">{Number(r.task_completion_pct).toFixed(0)}%</span>
+                      <div className="text-[10px] text-muted-foreground">{r.tasks_done}/{r.tasks_total}</div>
+                    </td>
+                    <td className="px-4 py-3 text-right">{Number(r.attendance_pct).toFixed(0)}%</td>
+                    <td className="px-4 py-3 text-right">{Number(r.working_hours).toFixed(0)}h</td>
+                    <td className="px-4 py-3 text-right font-medium">{Number(r.kpi_score).toFixed(1)}</td>
+                    <td className="px-4 py-3 text-center">
+                      {r.bonus_eligible
+                        ? <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">Yes</Badge>
+                        : <Badge variant="secondary" className="text-[10px]">No</Badge>}
+                    </td>
+                    <td className="px-4 py-3 text-right text-emerald-600">
+                      {r.bonus_amount_mmk > 0 ? `+${formatMMKCompact(r.bonus_amount_mmk)}` : "—"}
+                    </td>
+                  </tr>
+                  {isOpen && (
+                    <tr className="border-t border-border bg-muted/20">
+                      <td colSpan={9} className="px-4 py-3 text-xs text-muted-foreground">
+                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                          <div><span className="text-foreground font-medium">{r.days_present}</span> days present</div>
+                          <div><span className="text-foreground font-medium">{r.days_late}</span> days late</div>
+                          <div><span className="text-foreground font-medium">{r.days_absent}</span> days absent</div>
+                          <div><span className="text-foreground font-medium">{r.tasks_done}/{r.tasks_total}</span> tasks completed</div>
+                          <div>Level: <span className="text-foreground font-medium">{LEVEL_LABEL[r.level as EmployeeLevel] ?? r.level}</span></div>
+                          <div>Bonus tier: <span className="text-foreground font-medium">{bonusTier(Number(r.kpi_score))}</span></div>
+                          <div>Projected bonus: <span className="text-foreground font-medium">{formatMMK(r.bonus_amount_mmk)}</span></div>
+                          <div>Base salary: <span className="text-foreground font-medium">{formatMMK(r.base_salary_mmk)}</span></div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Eligibility: On-Site requires KPI ≥ 80 and Attendance ≥ 85%. Remote requires KPI ≥ 75 and Attendance ≥ 90%. Bonus amount mirrors the payroll engine's KPI tier.
+      </p>
+    </div>
+  );
+}
+
+function KpiCard({ label, value, suffix }: { label: string; value: string; suffix?: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-3">
+      <div className="text-[11px] uppercase tracking-wider text-muted-foreground">{label}</div>
+      <div className="mt-1 font-display text-2xl font-semibold tracking-tight">
+        {value}<span className="text-base font-normal text-muted-foreground">{suffix ?? ""}</span>
+      </div>
+    </div>
+  );
+}
