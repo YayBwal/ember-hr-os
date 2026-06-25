@@ -389,11 +389,7 @@ function PromotionsTab() {
         emp={promoting}
         bands={org?.salary_bands ?? null}
         onClose={() => setPromoting(null)}
-        onSaved={() => {
-          qc.invalidateQueries({ queryKey: ["employees_fin"] });
-          qc.invalidateQueries({ queryKey: ["promotions"] });
-          qc.invalidateQueries({ queryKey: ["payroll_lines"] });
-        }}
+        qc={qc}
         promote={promoteFn}
       />
     </div>
