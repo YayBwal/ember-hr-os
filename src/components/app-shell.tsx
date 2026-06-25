@@ -1,7 +1,6 @@
 import { Link, Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, lazy, Suspense } from "react";
 import {
-  LayoutDashboard,
   Users,
   Workflow,
   Wallet,
