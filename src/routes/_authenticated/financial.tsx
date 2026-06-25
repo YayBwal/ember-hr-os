@@ -226,7 +226,12 @@ function PayrollTab() {
                   </td>
                   <td className="px-4 py-3 text-right">{formatMMKCompact(l?.base_mmk ?? e.monthly_base_mmk)}</td>
                   <td className="px-4 py-3 text-right">
-                    <Badge variant="outline">{(l?.kpi_snapshot ?? 0).toFixed(1)} · {tier}</Badge>
+                    <div className="flex flex-col items-end gap-0.5">
+                      <Badge variant="outline">{Number(l?.kpi_snapshot ?? 0).toFixed(1)}</Badge>
+                      <span className={`text-[10px] ${tier === "0%" ? "text-muted-foreground" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        {tier === "0%" ? "No bonus tier" : `Tier ${tier}`}
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">
                     <Tooltip>

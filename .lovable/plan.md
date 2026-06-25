@@ -1,52 +1,59 @@
-## Root cause
+## Plan: Fix Recompute Payroll bonus/overtime outputs
 
-The Recompute button itself wires up correctly (`runMut.mutate()` → `runFn({ data: { periodMonth: "2026-06-01" } })` → loops employees, calls `recompute_employee_kpi` + `recompute_payroll`). The real failure is in the data layer:
+### What I found
+- The frontend button is already calling `runPayroll` with the selected month correctly.
+- `runPayroll` already calls `recompute_employee_kpi` before `recompute_payroll` for each employee.
+- The database function currently does not apply promotion KPI adjustments inside payroll, even though the KPI dashboard does. This explains mismatches like a dashboard KPI of `51.2` while payroll uses another snapshot.
+- For June 2026, the database only has one attendance row and it is `absent`, so the current formula correctly produces `0` overtime for that period. The function should still be hardened so empty attendance defaults cleanly to `0`.
+- The payroll table currently has no lines for a few employees, likely because older recompute runs skipped employees with missing/zero data or because the UI is reading only generated lines.
 
-- `public.payroll_runs` has **no unique constraint on `(org_id, period_month)`**. For June 2026 the table currently holds **4 duplicate runs** for the same org/period (with lines split across two of them).
-- The Payroll tab reads the run with `.maybeSingle()`, which errors out whenever more than one row matches → `run` is `undefined` → the empty-state card renders ("Payroll has not been computed for this period") and the `payroll_lines` query is keyed on `run?.id`, so it returns nothing either.
-- The `recompute_payroll` SQL function does `SELECT id INTO v_run_id ... WHERE org_id=? AND period_month=?` with no `LIMIT`/order. With duplicates present it non-deterministically updates one of them, so clicking Recompute appears to do nothing in the UI even though KPIs/lines are being recomputed against a different run row.
+### Backend fix
+1. Replace `public.recompute_payroll` with a safer version that:
+   - Loads the employee base salary, organization, employment type, and stored attendance safely.
+   - Recomputes raw KPI from `employee_kpis` for the month.
+   - Applies any monthly KPI adjustment from `employee_promotions.kpi_adjustment` before calculating the payroll snapshot.
+   - Calculates attendance with explicit `COALESCE` defaults:
+     - `present_days = 0` if none
+     - `late_days = 0` if none
+     - `logged_days = 0` if none
+   - Calculates overtime exactly as requested:
+     - `worked_hours = (present_days + late_days * 0.5) * 8`
+     - `overtime_hours = GREATEST(0, worked_hours - 176)`
+     - `hourly_rate = monthly_base_mmk / 176`
+     - `v_overtime = ROUND(hourly_rate * overtime_hours * 1.5)`
+   - Keeps missing attendance from breaking payroll rows.
+   - Writes/upserts every employee into `payroll_lines` for the selected run.
 
-KPI percentages reading 0/0% are a secondary symptom: tasks for June 2026 are mostly empty, so `task_completion` legitimately computes to 0 for most employees — but the user can't see the recomputed numbers at all because of the duplicate-run bug above.
+2. Fix KPI bonus tier mapping in the same function:
+   - Use the effective KPI snapshot after adjustment.
+   - Check eligibility using the same effective KPI and attendance rules as KPI Calculation.
+   - Use tier percentages:
+     - `>= 95` → `20%`
+     - `>= 90` → `15%`
+     - `>= 85` → `10%`
+     - `>= 80` → `5%`
+     - else `0%`
+   - Respect `kpi_overrides.eligible_override` and `kpi_overrides.bonus_override_mmk`.
+   - Write the final KPI bonus directly into `payroll_lines.performance_bonus_mmk`.
 
-## Fix plan
+3. Align `public.compute_kpi_dashboard` if needed so the dashboard and payroll use the same effective KPI for eligibility and tier checks.
 
-### 1. Database migration — dedupe + enforce uniqueness
+### Frontend fix
+1. Update `src/routes/_authenticated/financial.tsx` Payroll row display:
+   - Replace the confusing/static KPI indicator with a clear computed tier indicator.
+   - Show KPI score on the first line, and a stable second line like `Tier 5%`, `Tier 20%`, or `No bonus tier`.
+   - Avoid rendering broken text like `- 0%`.
 
-- For every `(org_id, period_month)` group in `payroll_runs` with >1 row:
-  - Pick the canonical run (`MIN(id)` or most recent `last_recomputed_at`).
-  - Re-point all `payroll_lines.run_id` from duplicates to the canonical run, resolving collisions (`(run_id, employee_id)` unique) by keeping the row with the newest `total_mmk > 0` and deleting the rest.
-  - Delete the now-orphan duplicate `payroll_runs`.
-  - Refresh `payroll_runs.total_mmk = SUM(payroll_lines.total_mmk)` for the canonical row.
-- Add `ALTER TABLE public.payroll_runs ADD CONSTRAINT payroll_runs_org_period_unique UNIQUE (org_id, period_month);`
-- Harden `public.recompute_payroll`: replace the bare `SELECT ... INTO v_run_id` + `IF NULL THEN INSERT` block with an `INSERT ... ON CONFLICT (org_id, period_month) DO UPDATE SET last_recomputed_at = now() RETURNING id INTO v_run_id;` so concurrent clicks can never create another duplicate. Keep the rest of the function (overtime, KPI snapshot, override handling) unchanged.
+2. Keep the existing tooltip behavior for KPI bonus:
+   - If manual override exists, show manual override note.
+   - Otherwise show the auto-generated tier explanation.
 
-### 2. Frontend — `src/routes/_authenticated/financial.tsx`
-
-- Replace the `payroll_runs` read with an order + limit pattern that tolerates pre-existing duplicates and never throws:
-  ```ts
-  .select("id,period_month,total_mmk,last_recomputed_at")
-  .eq("period_month", period)
-  .order("last_recomputed_at", { ascending: false, nullsFirst: false })
-  .limit(1)
-  .maybeSingle()
-  ```
-- In `runMut.onSuccess`, also invalidate `["kpi_dashboard"]` and explicitly refetch `["payroll_runs", period]` before `["payroll_lines"]` so the lines query gets a real `run.id`. Add `onError` toast already exists — surface the underlying message (currently does).
-- Empty-state card: only show when `!isLoading && !run` (avoid flashing during refetch).
-
-### 3. Server function — `src/lib/financial.functions.ts`
-
-- `runPayroll` already sequences `recompute_employee_kpi` then `recompute_payroll` per employee. Two small hardening changes:
-  - Scope the employees query to `org_id = current_org_id()` via an explicit `.eq("org_id", ...)` using a lightweight `profiles` lookup, **or** simpler: change to `context.supabase.rpc("recompute_payroll_for_org", { _period: period })` — but to stay minimal, keep the loop and just surface errors: collect per-employee `rpc` errors and throw the first one instead of swallowing (right now nothing checks the `.rpc` return).
-  - Normalize the incoming period through the existing `periodMonth()` helper (already done) — no change needed; the date parsing is safe because the client always sends `YYYY-MM-01`.
-
-### 4. Verification
-
-- After migration: `SELECT count(*) FROM payroll_runs WHERE period_month='2026-06-01'` must equal 1; the surviving run should aggregate the 14 lines and `total_mmk` should match `SUM(payroll_lines.total_mmk)`.
-- In the UI: open Financial → Payroll for June 2026, confirm the table renders the existing 14 lines immediately (no empty state), click **Recompute payroll**, confirm the toast fires, the "Last recomputed" badge updates, and KPI Calculation tab numbers refresh.
-
-### Out of scope
-
-- KPI formula itself (already audited last turn — values of 40% for employees with zero June tasks are correct given the 60% task / 40% attendance weighting).
-- Trigger removal from `trg_task_recompute` / `trg_attendance_recompute` — that decoupling is intentional and remains.
-
-summary: Dedupe `payroll_runs`, add a `(org_id, period_month)` unique constraint, switch `recompute_payroll` to `ON CONFLICT`, and update the Payroll tab to read the canonical run with `order().limit(1)` so the recomputed numbers actually appear in the UI.
+### Validation
+- Recompute payroll for the selected month.
+- Verify `payroll_lines` updates with:
+  - `kpi_snapshot`
+  - `performance_bonus_mmk`
+  - `overtime_mmk`
+  - `total_mmk`
+- Confirm zero overtime is shown only when attendance days do not exceed 176 hours.
+- Confirm employees with qualifying KPI/eligibility receive the correct KPI bonus, and manual overrides still win.
