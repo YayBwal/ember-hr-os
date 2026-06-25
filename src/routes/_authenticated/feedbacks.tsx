@@ -348,14 +348,14 @@ function AnalyticsTab() {
       const d = r.department ?? "unknown";
       map[d] ??= { total: 0, sum: 0 };
       map[d].total += 1;
-      map[d].sum += r.rating_value;
+      map[d].sum += r.rating_value ?? 0;
     }
     return Object.entries(map).map(([dept, v]) => ({ dept, avg: +(v.sum / v.total).toFixed(2), count: v.total }));
   }, [ratings]);
 
   const distribution = useMemo(() => {
     const m: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    for (const r of ratings) m[r.rating_value] = (m[r.rating_value] ?? 0) + 1;
+    for (const r of ratings) if (r.rating_value != null) m[r.rating_value] = (m[r.rating_value] ?? 0) + 1;
     return [1, 2, 3, 4, 5].map((n) => ({ rating: `${n}★`, count: m[n] }));
   }, [ratings]);
 
