@@ -224,268 +224,321 @@ function PipelinePage() {
 
   return (
     <AppShell>
-      <div className="px-4 py-6 md:px-8">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Pipeline</div>
-            <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Candidates</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Screening → Interview → Hired. Built for high-volume days.
+      <div className="flex min-h-[calc(100vh-4rem)]">
+        {/* Sidebar stages */}
+        <aside className="w-64 shrink-0 border-r border-border bg-card/40">
+          <div className="px-6 pt-6 pb-4">
+            <div className="text-[10px] font-mono uppercase tracking-[0.22em] text-primary">Pipeline</div>
+            <h2 className="mt-2 font-display text-2xl italic tracking-tight">Stages</h2>
+          </div>
+          <nav className="px-3 pb-4 space-y-1">
+            {STAGES.map((s) => {
+              const active = activeStage === s;
+              const isHold = s === "hold";
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStage(s)}
+                  className={`group relative w-full flex items-center justify-between rounded-md px-3 py-2.5 text-sm transition-colors ${
+                    active
+                      ? isHold
+                        ? "bg-primary/10 text-primary border-l-2 border-primary"
+                        : "bg-foreground/[0.06] text-foreground border-l-2 border-foreground"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/40 border-l-2 border-transparent"
+                  }`}
+                >
+                  <span className="flex items-center gap-2.5">
+                    {isHold && (
+                      <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-primary animate-pulse" : "bg-primary/60"}`} />
+                    )}
+                    <span className="font-medium">{STAGE_LABELS[s]}</span>
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-mono ${
+                    active && isHold ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {counts[s]}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="mx-6 mt-2 rounded-md border border-border/60 bg-background/60 p-3">
+            <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Warm bench</div>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+              When a role is full, move strong candidates to <span className="text-primary font-medium">Hold</span>. Recall them first when a new opening appears.
             </p>
           </div>
-          <Button onClick={() => setOpen(true)} className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add candidates
-          </Button>
-        </div>
+        </aside>
 
-        {/* Stage tabs with counts */}
-        <div className="mt-6 flex flex-wrap gap-1 border-b border-border">
-          {STAGES.map((s) => {
-            const active = activeStage === s;
-            return (
-              <button
-                key={s}
-                onClick={() => setStage(s)}
-                className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
-                  active
-                    ? "text-foreground"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {STAGE_LABELS[s]}
-                <span className="ml-2 rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono">
-                  {counts[s]}
-                </span>
-                {active && (
-                  <span className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Filter bar */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <Input
-            value={searchInput}
-            onChange={(e) => {
-              setSearchInput(e.target.value);
-              navigate({ search: (prev: any) => ({ ...prev, q: e.target.value || undefined }), replace: true });
-            }}
-            placeholder="Search name, email, or skill…"
-            className="max-w-xs"
-          />
-          <Select value={roleFilter} onValueChange={setRoleFilter}>
-            <SelectTrigger className="w-[180px]"><SelectValue placeholder="All roles" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All roles</SelectItem>
-              {roles.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <div className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
-            <span className="text-xs text-muted-foreground">Min match</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={5}
-              value={minScore}
-              onChange={(e) => setMinScore(Number(e.target.value))}
-              className="w-24"
-            />
-            <span className="w-8 text-right font-mono text-xs">{minScore}</span>
-          </div>
-          <div className="ml-auto text-xs text-muted-foreground">
-            {filtered.length} of {counts[activeStage]} in {STAGE_LABELS[activeStage]}
-          </div>
-        </div>
-
-        {/* Bulk action bar */}
-        {selected.size > 0 && (
-          <div className="mt-3 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-2">
-            <div className="text-sm">
-              <span className="font-medium">{selected.size}</span> selected
-            </div>
-            <div className="flex gap-2">
-              {activeStage === "screening" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => update.mutate({ ids: Array.from(selected), status: "interview" })}
-                  className="gap-1.5"
-                >
-                  <ArrowRight className="h-3.5 w-3.5" /> Move to Interview
-                </Button>
-              )}
-              {activeStage === "interview" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => moveToTrainee(Array.from(selected))}
-                  className="gap-1.5"
-                >
-                  <ArrowRight className="h-3.5 w-3.5" /> Move to Trainee
-                </Button>
-              )}
-              {selected.size >= 2 && selected.size <= 4 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => setCompareOpen(true)}
-                  className="gap-1.5"
-                >
-                  <GitCompare className="h-3.5 w-3.5" /> Compare ({selected.size})
-                </Button>
-              )}
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => reject(Array.from(selected))}
-                className="gap-1.5 text-destructive hover:text-destructive"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> Reject & delete
-              </Button>
-              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
-                <X className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Table */}
-        <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
-          <div className="grid grid-cols-12 gap-2 border-b border-border bg-muted/40 px-4 py-2.5 text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-            <div className="col-span-1 flex items-center">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={(e) => {
-                  const next = new Set(selected);
-                  if (e.target.checked) pageRows.forEach((r) => next.add(r.id));
-                  else pageRows.forEach((r) => next.delete(r.id));
-                  setSelected(next);
-                }}
-              />
-            </div>
-            <div className="col-span-3">Candidate</div>
-            <div className="col-span-2">Role</div>
-            <div className="col-span-2">AI match</div>
-            <div className="col-span-2">Next step</div>
-            <div className="col-span-2 text-right">Actions</div>
-          </div>
-          {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
-          ) : pageRows.length === 0 ? (
-            all.length === 0 ? (
-              <EmptyState onAdd={() => setOpen(true)} />
-            ) : (
-              <div className="p-12 text-center text-sm text-muted-foreground">
-                Nothing in {STAGE_LABELS[activeStage]} matching these filters.
+        {/* Main pane */}
+        <main className="flex-1 min-w-0">
+          <header className="px-6 md:px-10 pt-8 pb-5 border-b border-border">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <h1 className="font-display text-3xl md:text-4xl italic tracking-tight">{STAGE_LABELS[activeStage]}</h1>
+                <p className="mt-1 text-sm text-muted-foreground">{STAGE_HINTS[activeStage]}</p>
               </div>
-            )
-          ) : (
-            pageRows.map((c) => (
-              <div key={c.id} className="grid grid-cols-12 items-center gap-2 border-b border-border px-4 py-3 last:border-0 hover:bg-muted/20">
-                <div className="col-span-1">
+              <Button onClick={() => setOpen(true)} className="gap-2">
+                <Plus className="h-4 w-4" />
+                Add candidates
+              </Button>
+            </div>
+
+            {/* Filter bar */}
+            <div className="mt-6 flex flex-wrap items-center gap-3">
+              <Input
+                value={searchInput}
+                onChange={(e) => {
+                  setSearchInput(e.target.value);
+                  navigate({ search: (prev: any) => ({ ...prev, q: e.target.value || undefined }), replace: true });
+                }}
+                placeholder="Search name, email, or skill…"
+                className="max-w-xs"
+              />
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="All roles" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All roles</SelectItem>
+                  {roles.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-2 rounded-md border border-border px-3 py-1.5">
+                <span className="text-xs text-muted-foreground">Min match</span>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={5}
+                  value={minScore}
+                  onChange={(e) => setMinScore(Number(e.target.value))}
+                  className="w-24 accent-primary"
+                />
+                <span className="w-8 text-right font-mono text-xs">{minScore}</span>
+              </div>
+              <div className="ml-auto text-xs text-muted-foreground">
+                {filtered.length} of {counts[activeStage]} in {STAGE_LABELS[activeStage]}
+              </div>
+            </div>
+          </header>
+
+          <div className="px-6 md:px-10 py-5">
+            {/* Bulk action bar */}
+            {selected.size > 0 && (
+              <div className="mb-4 flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-2">
+                <div className="text-sm">
+                  <span className="font-medium">{selected.size}</span> selected
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {activeStage === "screening" && (
+                    <Button size="sm" variant="outline" onClick={() => update.mutate({ ids: Array.from(selected), status: "interview" })} className="gap-1.5">
+                      <ArrowRight className="h-3.5 w-3.5" /> Move to Interview
+                    </Button>
+                  )}
+                  {activeStage === "interview" && (
+                    <Button size="sm" variant="outline" onClick={() => moveToTrainee(Array.from(selected))} className="gap-1.5">
+                      <ArrowRight className="h-3.5 w-3.5" /> Move to Trainee
+                    </Button>
+                  )}
+                  {(activeStage === "interview" || activeStage === "screening" || activeStage === "trainee") && (
+                    <Button size="sm" variant="outline" onClick={() => holdCandidates(Array.from(selected))} className="gap-1.5">
+                      <PauseCircle className="h-3.5 w-3.5" /> Move to Hold
+                    </Button>
+                  )}
+                  {activeStage === "hold" && (
+                    <Button size="sm" variant="outline" onClick={() => recallFromHold(Array.from(selected))} className="gap-1.5 text-primary border-primary/40 hover:bg-primary/10">
+                      <Undo2 className="h-3.5 w-3.5" /> Recall to Interview
+                    </Button>
+                  )}
+                  {selected.size >= 2 && selected.size <= 4 && (
+                    <Button size="sm" variant="outline" onClick={() => setCompareOpen(true)} className="gap-1.5">
+                      <GitCompare className="h-3.5 w-3.5" /> Compare ({selected.size})
+                    </Button>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => reject(Array.from(selected))} className="gap-1.5 text-destructive hover:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5" /> Reject & delete
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                    <X className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Table */}
+            <div className="overflow-hidden rounded-xl border border-border bg-card">
+              <div className="grid grid-cols-12 gap-2 border-b border-border bg-muted/40 px-4 py-2.5 text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
+                <div className="col-span-1 flex items-center">
                   <input
                     type="checkbox"
-                    checked={selected.has(c.id)}
+                    checked={allSelected}
                     onChange={(e) => {
                       const next = new Set(selected);
-                      if (e.target.checked) next.add(c.id);
-                      else next.delete(c.id);
+                      if (e.target.checked) pageRows.forEach((r) => next.add(r.id));
+                      else pageRows.forEach((r) => next.delete(r.id));
                       setSelected(next);
                     }}
                   />
                 </div>
-                <div className="col-span-3 min-w-0">
-                  <div className="font-medium truncate">{c.full_name}</div>
-                  <div className="text-xs text-muted-foreground truncate">{c.email ?? "—"}</div>
-                  {c.skills && c.skills.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {c.skills.slice(0, 3).map((s) => (
-                        <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">
-                          {s}
-                        </span>
-                      ))}
-                      {c.skills.length > 3 && (
-                        <span className="text-[10px] font-mono text-muted-foreground">+{c.skills.length - 3}</span>
+                <div className="col-span-3">Candidate</div>
+                <div className="col-span-2">Role</div>
+                <div className="col-span-2">AI match</div>
+                <div className="col-span-2">{activeStage === "hold" ? "Hold reason" : "Next step"}</div>
+                <div className="col-span-2 text-right">Actions</div>
+              </div>
+              {isLoading ? (
+                <div className="p-8 text-center text-sm text-muted-foreground">Loading…</div>
+              ) : pageRows.length === 0 ? (
+                all.length === 0 ? (
+                  <EmptyState onAdd={() => setOpen(true)} />
+                ) : (
+                  <div className="p-12 text-center text-sm text-muted-foreground">
+                    Nothing in {STAGE_LABELS[activeStage]} matching these filters.
+                  </div>
+                )
+              ) : (
+                pageRows.map((c) => (
+                  <div
+                    key={c.id}
+                    className={`grid grid-cols-12 items-center gap-2 border-b border-border px-4 py-3 last:border-0 transition-colors hover:bg-muted/20 ${
+                      c.status === "hold" ? "border-l-2 border-l-primary/40" : ""
+                    }`}
+                  >
+                    <div className="col-span-1">
+                      <input
+                        type="checkbox"
+                        checked={selected.has(c.id)}
+                        onChange={(e) => {
+                          const next = new Set(selected);
+                          if (e.target.checked) next.add(c.id);
+                          else next.delete(c.id);
+                          setSelected(next);
+                        }}
+                      />
+                    </div>
+                    <div className="col-span-3 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <div className="font-medium truncate">{c.full_name}</div>
+                        {c.status === "hold" && (
+                          <span className="rounded-sm bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">Warm</span>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">{c.email ?? "—"}</div>
+                      {c.skills && c.skills.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {c.skills.slice(0, 3).map((s) => (
+                            <span key={s} className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono text-muted-foreground">{s}</span>
+                          ))}
+                          {c.skills.length > 3 && (
+                            <span className="text-[10px] font-mono text-muted-foreground">+{c.skills.length - 3}</span>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-                <div className="col-span-2 text-sm truncate">{c.role_applied}</div>
-                <div className="col-span-2">
-                  <MatchBar score={Number(c.ai_match_score)} />
-                </div>
-                <div className="col-span-2 text-xs text-muted-foreground truncate" title={c.next_action ?? ""}>
-                  {c.next_action ?? "—"}
-                </div>
-                <div className="col-span-2 flex items-center justify-end gap-1">
-                  <button
-                    onClick={() => setAnalyzeId(c)}
-                    className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-primary/40 hover:text-primary"
-                    title="AI deep analysis"
-                  >
-                    <Brain className="h-3 w-3" />
-                  </button>
-                  {c.status === "screening" && (
-                    <button
-                      onClick={() => advanceOne(c)}
-                      className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
-                    >
-                      → Interview
-                    </button>
-                  )}
-                  {c.status === "interview" && (
-                    <>
+                    <div className="col-span-2 text-sm truncate">{c.role_applied}</div>
+                    <div className="col-span-2">
+                      <MatchBar score={Number(c.ai_match_score)} />
+                    </div>
+                    <div className="col-span-2 text-xs text-muted-foreground truncate" title={c.status === "hold" ? c.hold_reason ?? "" : c.next_action ?? ""}>
+                      {c.status === "hold"
+                        ? (c.hold_reason ? <span className="italic">{c.hold_reason}</span> : <span className="opacity-60">— no reason —</span>)
+                        : (c.next_action ?? "—")}
+                      {c.status === "hold" && c.held_at && (
+                        <div className="mt-0.5 text-[10px] font-mono opacity-60">held {new Date(c.held_at).toLocaleDateString()}</div>
+                      )}
+                    </div>
+                    <div className="col-span-2 flex items-center justify-end gap-1">
                       <button
-                        onClick={() => moveToTrainee([c.id])}
-                        className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
+                        onClick={() => setAnalyzeId(c)}
+                        className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-primary/40 hover:text-primary"
+                        title="AI deep analysis"
                       >
-                        → Trainee
+                        <Brain className="h-3 w-3" />
                       </button>
-                      <button
-                        onClick={() => setApproving(c)}
-                        className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
-                      >
-                        Hire
-                      </button>
-                    </>
-                  )}
-                  {c.status === "trainee" && (
-                    <button
-                      onClick={() => setApproving(c)}
-                      className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
-                    >
-                      Promote → Hired
-                    </button>
-                  )}
-                  {c.status !== "hired" && (
-                    <button
-                      onClick={() => reject([c.id])}
-                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
-                      title="Reject & delete"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
+                      {c.status === "screening" && (
+                        <button
+                          onClick={() => advanceOne(c)}
+                          className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
+                        >
+                          → Interview
+                        </button>
+                      )}
+                      {c.status === "interview" && (
+                        <>
+                          <button
+                            onClick={() => moveToTrainee([c.id])}
+                            className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
+                          >
+                            → Trainee
+                          </button>
+                          <button
+                            onClick={() => setApproving(c)}
+                            className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                          >
+                            Hire
+                          </button>
+                        </>
+                      )}
+                      {c.status === "trainee" && (
+                        <button
+                          onClick={() => setApproving(c)}
+                          className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                        >
+                          Promote → Hired
+                        </button>
+                      )}
+                      {c.status === "hold" && (
+                        <>
+                          <button
+                            onClick={() => recallFromHold([c.id])}
+                            className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                            title="Recall this candidate into Interview"
+                          >
+                            <Undo2 className="mr-1 inline h-3 w-3" /> Recall
+                          </button>
+                          <button
+                            onClick={() => setApproving(c)}
+                            className="rounded-md border border-border bg-background px-2 py-1 text-[10px] font-medium hover:border-primary/40 hover:text-primary"
+                          >
+                            Hire now
+                          </button>
+                        </>
+                      )}
+                      {(c.status === "screening" || c.status === "interview" || c.status === "trainee") && (
+                        <button
+                          onClick={() => holdCandidates([c.id])}
+                          className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-primary/40 hover:text-primary"
+                          title="Move to Hold — keep warm for later"
+                        >
+                          <PauseCircle className="h-3 w-3" />
+                        </button>
+                      )}
+                      {c.status !== "hired" && (
+                        <button
+                          onClick={() => reject([c.id])}
+                          className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-destructive/40 hover:text-destructive"
+                          title="Reject & delete"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+              {pageCount > 1 && (
+                <div className="flex items-center justify-between px-4 py-2.5 text-xs text-muted-foreground">
+                  <div>Page {page + 1} of {pageCount}</div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</Button>
+                    <Button size="sm" variant="outline" disabled={page >= pageCount - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
+                  </div>
                 </div>
-              </div>
-            ))
-          )}
-          {pageCount > 1 && (
-            <div className="flex items-center justify-between px-4 py-2.5 text-xs text-muted-foreground">
-              <div>Page {page + 1} of {pageCount}</div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>Prev</Button>
-                <Button size="sm" variant="outline" disabled={page >= pageCount - 1} onClick={() => setPage((p) => p + 1)}>Next</Button>
-              </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        </main>
       </div>
+
 
       <AddCandidateDialog open={open} onOpenChange={setOpen} />
       <ApproveDialog candidate={approving} defaultBase={approving?.trainee_salary_mmk ?? defaultTraineeSalary} onClose={() => setApproving(null)} />
