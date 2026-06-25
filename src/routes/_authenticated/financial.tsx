@@ -197,7 +197,7 @@ function PayrollTab() {
             <tr>
               <th className="px-4 py-3 text-left">Employee</th>
               <th className="px-4 py-3 text-right">Base</th>
-              <th className="px-4 py-3 text-right">KPI</th>
+              <th className="px-4 py-3 text-center">KPI</th>
               <th className="px-4 py-3 text-right">KPI Bonus</th>
               <th className="px-4 py-3 text-right">Extra Bonus</th>
               <th className="px-4 py-3 text-right">Overtime</th>
@@ -216,39 +216,40 @@ function PayrollTab() {
                 ? `Manually adjusted by HR${ov?.note ? ` · ${ov.note}` : ""}`
                 : `Auto-generated from KPI tier (${tier})`;
               return (
-                <tr key={e.id} className="border-t border-border">
-                  <td className="px-4 py-3">
+                <tr key={e.id} className="border-t border-border align-middle">
+                  <td className="px-4 py-3 align-middle">
                     <div className="flex items-center gap-2">
-                      <span className="font-medium">{e.full_name}</span>
-                      <Badge variant="secondary" className="text-[10px]">{LEVEL_LABEL[e.level]}</Badge>
+                      <span className="font-medium leading-tight">{e.full_name}</span>
+                      <Badge variant="secondary" className="text-[10px] leading-none">{LEVEL_LABEL[e.level]}</Badge>
                     </div>
                     <div className="text-xs text-muted-foreground">{e.position} · {e.department}</div>
                   </td>
-                  <td className="px-4 py-3 text-right">{formatMMKCompact(l?.base_mmk ?? e.monthly_base_mmk)}</td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex flex-col items-end gap-0.5">
-                      <Badge variant="outline">{Number(l?.kpi_snapshot ?? 0).toFixed(1)}</Badge>
-                      <span className={`text-[10px] ${tier === "0%" ? "text-muted-foreground" : "text-emerald-600 dark:text-emerald-400"}`}>
-                        {tier === "0%" ? "No bonus tier" : `Tier ${tier}`}
+                  <td className="px-4 py-3 text-right align-middle tabular-nums">{formatMMKCompact(l?.base_mmk ?? e.monthly_base_mmk)}</td>
+                  <td className="px-4 py-3 text-right align-middle">
+                    <div className="flex flex-col items-center leading-tight">
+                      <span className="font-medium tabular-nums">{Number(l?.kpi_snapshot ?? 0).toFixed(1)}</span>
+                      <span className={`text-[10px] mt-0.5 ${tier === "0%" ? "text-muted-foreground" : "text-emerald-600 dark:text-emerald-400"}`}>
+                        {tier === "0%" ? "No tier" : `Tier ${tier}`}
                       </span>
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">
+                  <td className="px-4 py-3 text-right align-middle text-emerald-600 dark:text-emerald-400">
                     <Tooltip>
                       <TooltipTrigger asChild>
-                        <span className="inline-flex items-center gap-1 cursor-help">
+                        <span className="inline-flex items-center justify-end gap-1 cursor-help tabular-nums">
                           +{formatMMKCompact(l?.performance_bonus_mmk ?? 0)}
-                          <Info className="h-3 w-3 opacity-60" />
-                          {isOverride && <Badge variant="secondary" className="ml-1 text-[9px]">manual</Badge>}
+                          <Info className="h-3 w-3 opacity-60 shrink-0" />
+                          {isOverride && <Badge variant="secondary" className="ml-1 text-[9px] leading-none">manual</Badge>}
                         </span>
                       </TooltipTrigger>
                       <TooltipContent>{bonusTip}</TooltipContent>
                     </Tooltip>
                   </td>
-                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.bonus_mmk ?? 0)}</td>
-                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.overtime_mmk ?? 0)}</td>
-                  <td className="px-4 py-3 text-right text-destructive">-{formatMMKCompact(l?.deduction_mmk ?? 0)}</td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatMMK(l?.total_mmk ?? e.monthly_base_mmk)}</td>
+                  <td className="px-4 py-3 text-right align-middle tabular-nums text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.bonus_mmk ?? 0)}</td>
+                  <td className="px-4 py-3 text-right align-middle tabular-nums text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.overtime_mmk ?? 0)}</td>
+                  <td className="px-4 py-3 text-right align-middle tabular-nums text-destructive">-{formatMMKCompact(l?.deduction_mmk ?? 0)}</td>
+                  <td className="px-4 py-3 text-right align-middle font-semibold tabular-nums">{formatMMK(l?.total_mmk ?? e.monthly_base_mmk)}</td>
+
                   <td className="px-4 py-3 text-right">
                     <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "bonus", emp: e })}><Plus className="h-3 w-3" /></Button>
                     <Button size="sm" variant="ghost" onClick={() => setDialog({ kind: "deduction", emp: e })}><Minus className="h-3 w-3" /></Button>
