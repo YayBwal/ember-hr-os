@@ -10,24 +10,28 @@ import {
   CheckCircle2,
   Clock,
   GitBranch,
+  MessageSquare,
+  Bot,
+  ShieldCheck,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatMMKCompact } from "@/lib/format";
+import logoAsset from "@/assets/mandai-logo.svg.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Mandai — AI Operations Layer for Enterprise HR" },
+      { title: "Mandai — AI HR Operating System for HR & Team Leaders" },
       {
         name: "description",
         content:
-          "Recruitment, operations, delivery and MMK payroll, unified by a real-time AI HR operating system.",
+          "Telegram-powered recruitment, live workforce ops, meeting-to-task delivery, MMK payroll and KPI-driven bonuses — built for HR and Team Leaders.",
       },
-      { property: "og:title", content: "Mandai — AI Operations Layer for Enterprise HR" },
+      { property: "og:title", content: "Mandai — AI HR Operating System" },
       {
         property: "og:description",
         content:
-          "Recruitment, operations, delivery and MMK payroll, unified by a real-time AI HR operating system.",
+          "Telegram CV intake, live operations, KPI calculation and MMK payroll in one role-aware workspace.",
       },
     ],
   }),
@@ -39,6 +43,7 @@ function Landing() {
     <div className="min-h-screen bg-background text-foreground">
       <Nav />
       <Hero />
+      <RolesSection />
       <FeatureGrid />
       <DashboardPreview />
       <Timeline />
@@ -57,10 +62,11 @@ function Nav() {
           <span className="font-display text-lg font-semibold tracking-tight">Mandai</span>
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-muted-foreground md:flex">
+          <a href="#roles" className="hover:text-foreground transition-colors">Roles</a>
           <a href="#pipeline" className="hover:text-foreground transition-colors">Pipeline</a>
           <a href="#operations" className="hover:text-foreground transition-colors">Operations</a>
-          <a href="#delivery" className="hover:text-foreground transition-colors">Delivery</a>
           <a href="#financial" className="hover:text-foreground transition-colors">Financial</a>
+          <a href="#feedback" className="hover:text-foreground transition-colors">Feedback</a>
         </nav>
         <div className="flex items-center gap-2">
           <ThemeToggle />
@@ -78,10 +84,11 @@ function Nav() {
 
 function LogoMark() {
   return (
-    <div className="relative flex h-7 w-7 items-center justify-center rounded-md bg-primary">
-      <div className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
-      <div className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-primary-glow ai-pulse" />
-    </div>
+    <img
+      src={logoAsset.url}
+      alt="Mandai"
+      className="h-7 w-7 rounded-md object-contain"
+    />
   );
 }
 
@@ -96,16 +103,17 @@ function Hero() {
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-primary" />
             </span>
-            Real-time AI HR operating system
+            Built for HR & Team Leaders
           </div>
           <h1 className="mt-6 font-display text-5xl font-semibold leading-[1.05] tracking-tight sm:text-6xl md:text-7xl">
-            AI Operations Layer
+            One workspace,
             <br />
-            <span className="text-primary">for Enterprise HR</span>
+            <span className="text-primary">two clear roles.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-muted-foreground sm:text-lg">
-            Mandai unifies recruitment, workforce operations, meeting-to-task delivery, and MMK payroll into one
-            seamless, API-driven workflow. From resume to payslip — automated.
+            Mandai connects a Telegram bot, your hiring pipeline, live operations, meeting-driven delivery,
+            KPI calculation and MMK payroll into a single AI-driven loop — with role-aware views for HR
+            and Team Leaders.
           </p>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -116,16 +124,16 @@ function Hero() {
               <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
             </Link>
             <a
-              href="#pipeline"
+              href="#roles"
               className="inline-flex h-12 items-center gap-2 rounded-md border border-border bg-card px-6 text-sm font-medium text-foreground transition-colors hover:bg-accent"
             >
               See the loop
             </a>
           </div>
           <div className="mt-12 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-border bg-border text-left">
-            <Stat label="Pipeline-to-payslip" value="One loop" />
             <Stat label="Currency" value="MMK" />
-            <Stat label="Latency" value="Real-time" />
+            <Stat label="Intake" value="Telegram bot" />
+            <Stat label="State" value="Real-time" />
           </div>
         </div>
       </div>
@@ -142,38 +150,155 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
+const ROLES = [
+  {
+    icon: ShieldCheck,
+    name: "HR",
+    blurb:
+      "Owns recruitment, operations oversight, payroll, KPI calculation and feedback. Sees the whole company.",
+    points: [
+      "Pipeline with Telegram CV intake & Talent Pool",
+      "Promotions & Demotions with salary-band guardrails",
+      "MMK payroll, bonuses & KPI overrides",
+      "Feedback dashboard & incident reports",
+    ],
+  },
+  {
+    icon: Users,
+    name: "Team Leader",
+    blurb:
+      "Distraction-free interface. Assigns tasks, rates completed work, and tracks team performance only.",
+    points: [
+      "Assign tasks to team members",
+      "Review & rate completed tasks (0–100)",
+      "Single performance slider per member",
+      "No sidebar — just the team you own",
+    ],
+  },
+];
+
+function RolesSection() {
+  return (
+    <section id="roles" className="border-b border-border/60 bg-muted/30">
+      <div className="mx-auto max-w-7xl px-6 py-24">
+        <div className="max-w-2xl">
+          <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Role-aware workspace</div>
+          <h2 className="mt-3 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
+            HR sees the system. Team Leaders see their team.
+          </h2>
+          <p className="mt-4 text-base text-muted-foreground">
+            Switch roles from the top of the workspace. Each role renders only the surface it needs — no
+            cross-contamination, no clutter.
+          </p>
+        </div>
+        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">
+          {ROLES.map((r) => (
+            <div key={r.name} className="bg-card p-8">
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/20">
+                <r.icon className="h-5 w-5" />
+              </div>
+              <h3 className="mt-6 font-display text-2xl font-semibold tracking-tight">{r.name}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{r.blurb}</p>
+              <ul className="mt-6 space-y-2">
+                {r.points.map((p) => (
+                  <li key={p} className="flex items-start gap-2 text-sm">
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const FEATURES = [
   {
     id: "pipeline",
-    icon: Users,
+    icon: Bot,
     title: "Pipeline",
-    eyebrow: "Recruitment",
-    blurb: "Resume → AI matching → onboarding. Candidate flow, scored and routed automatically.",
-    points: ["Match score on every resume", "Auto-staged interview flow", "Onboarding tasks dispatched"],
+    eyebrow: "Telegram + AI intake",
+    blurb:
+      "Candidates apply via the Telegram bot. AI scores CVs against role requirements and routes them — duplicates by email are caught automatically.",
+    points: [
+      "Telegram /apply → PDF CV upload",
+      "AI extraction & role matching",
+      "Talent Pool & On-Hold with recall",
+      "Notify candidates from the pipeline",
+    ],
   },
   {
     id: "operations",
     icon: Workflow,
     title: "Operations",
-    eyebrow: "Workforce",
-    blurb: "Live workforce management — attendance, workload, productivity, and team capacity in one view.",
-    points: ["Real-time attendance", "Workload heatmap", "Department-level KPIs"],
+    eyebrow: "Employees · Teams · Meetings",
+    blurb:
+      "Live employees view with attendance, department and Telegram link status. Team Leaders manage assignments inline.",
+    points: [
+      "Real-time employee leaderboard",
+      "Team detail with tasks & reviews",
+      "Mobile-first responsive cards",
+      "Telegram link status per employee",
+    ],
   },
   {
     id: "delivery",
     icon: AudioLines,
     title: "Delivery",
     eyebrow: "Meeting → Tasks",
-    blurb: "Upload a meeting. AI extracts action items into Kanban. Drag to update. Completion cascades.",
-    points: ["Audio → transcript → tasks", "Kanban with optimistic updates", "Linked to assignees"],
+    blurb:
+      "Upload a meeting. AI extracts action items into a Kanban board. Completion flows back into KPI and payroll.",
+    points: [
+      "Audio → transcript → tasks",
+      "Kanban with optimistic updates",
+      "Team Leader review (0–100)",
+      "Feeds KPI weighting",
+    ],
   },
   {
     id: "financial",
     icon: Wallet,
     title: "Financial",
-    eyebrow: "Payroll · MMK",
-    blurb: "Payroll in Myanmar Kyat tied to live performance and completed work. Recalculated as tasks ship.",
-    points: ["MMK-native payroll runs", "Performance-linked bonuses", "Audit trail per recalculation"],
+    eyebrow: "Payroll · KPI · MMK",
+    blurb:
+      "MMK payroll with KPI-linked bonuses. Promotions & Demotions enforce salary bands. KPI overrides are auditable.",
+    points: [
+      "Tasks 60% + Attendance 40% + TL rating 25%",
+      "Eligibility & Bonus overrides with audit",
+      "Promotions & Demotions, band-guarded",
+      "Remote vs on-site bonus rules",
+    ],
+  },
+  {
+    id: "feedback",
+    icon: MessageSquare,
+    title: "Feedback",
+    eyebrow: "Telegram surveys",
+    blurb:
+      "Employees link with their EMP-XXXX code and respond to surveys in Telegram. HR sees responses and incident reports.",
+    points: [
+      "/start → link by employee code",
+      "Survey responses in one dashboard",
+      "Incident reports & line items",
+      "/help command for guidance",
+    ],
+  },
+  {
+    id: "assistant",
+    icon: Sparkles,
+    title: "AI Assistant",
+    eyebrow: "Chat + Voice",
+    blurb:
+      "A single dock combines text copilot and Gemini Live voice. Deep data access across pipeline, ops, payroll and feedback.",
+    points: [
+      "Chat & voice in one dock",
+      "Charts inline from real data",
+      "CV analysis on demand",
+      "Burmese voice input understood",
+    ],
   },
 ];
 
@@ -182,17 +307,17 @@ function FeatureGrid() {
     <section className="border-b border-border/60">
       <div className="mx-auto max-w-7xl px-6 py-24">
         <div className="max-w-2xl">
-          <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Four modules · One loop</div>
+          <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Six modules · One loop</div>
           <h2 className="mt-3 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
             Every HR motion, on one canvas.
           </h2>
           <p className="mt-4 text-base text-muted-foreground">
-            Mandai replaces the patchwork of recruiting, HRIS, project tools and payroll software with a single
-            AI-driven operating layer.
+            From Telegram CV intake to MMK payslip — Mandai is the connective tissue across recruitment,
+            operations, delivery, finance and feedback.
           </p>
         </div>
 
-        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2">
+        <div className="mt-12 grid gap-px overflow-hidden rounded-2xl border border-border bg-border md:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f) => (
             <div key={f.id} id={f.id} className="group relative bg-card p-8 transition-colors hover:bg-accent/30">
               <div className="flex items-center justify-between">
@@ -233,14 +358,13 @@ function DashboardPreview() {
         </div>
 
         <div className="mt-12 overflow-hidden rounded-2xl border border-border bg-card shadow-2xl shadow-black/5">
-          {/* mock chrome */}
           <div className="flex items-center gap-2 border-b border-border bg-muted/50 px-4 py-2.5">
             <div className="flex gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
               <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
               <span className="h-2.5 w-2.5 rounded-full bg-muted-foreground/30" />
             </div>
-            <div className="ml-2 font-mono text-[11px] text-muted-foreground">mandai.workspace / delivery</div>
+            <div className="ml-2 font-mono text-[11px] text-muted-foreground">mandai.workspace / operations</div>
             <div className="ml-auto flex items-center gap-1.5 text-[11px] text-primary">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />
@@ -250,37 +374,35 @@ function DashboardPreview() {
             </div>
           </div>
           <div className="grid grid-cols-12 gap-px bg-border">
-            {/* sidebar */}
             <aside className="col-span-2 hidden bg-card p-4 md:block">
               <div className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-                Modules
+                HR view
               </div>
               <ul className="mt-3 space-y-1 text-sm">
-                {["Pipeline", "Operations", "Delivery", "Financial"].map((m, i) => (
+                {["Pipeline", "Operations", "Delivery", "Financial", "Feedbacks"].map((m, i) => (
                   <li
                     key={m}
-                    className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${i === 2 ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
+                    className={`flex items-center gap-2 rounded-md px-2 py-1.5 ${i === 1 ? "bg-primary/10 text-primary" : "text-muted-foreground"}`}
                   >
-                    <span className={`h-1.5 w-1.5 rounded-full ${i === 2 ? "bg-primary" : "bg-muted-foreground/40"}`} />
+                    <span className={`h-1.5 w-1.5 rounded-full ${i === 1 ? "bg-primary" : "bg-muted-foreground/40"}`} />
                     {m}
                   </li>
                 ))}
               </ul>
             </aside>
-            {/* main */}
             <div className="col-span-12 bg-background p-6 md:col-span-10">
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <KpiTile label="Employees" value="48" />
                 <KpiTile label="Open tasks" value="23" trend />
                 <KpiTile label="Payroll · Sep" value={formatMMKCompact(124_500_000)} accent />
-                <KpiTile label="Avg performance" value="88.4" />
+                <KpiTile label="Avg KPI" value="88.4" />
               </div>
               <div className="mt-6 grid gap-3 md:grid-cols-4">
                 {[
-                  { name: "To Do", count: 6, tasks: ["Recruit 10 candidates", "Refresh ops dashboard"] },
-                  { name: "In Progress", count: 4, tasks: ["Finalize Q3 payroll", "Review cycle setup"] },
-                  { name: "Review", count: 3, tasks: ["Attendance audit", "Bonus structure"] },
-                  { name: "Done", count: 10, tasks: ["Handbook published"] },
+                  { name: "To Do", count: 6, tasks: ["Screen 10 Telegram CVs", "Refresh attendance"] },
+                  { name: "In Progress", count: 4, tasks: ["Finalize Q3 payroll", "Promotion review"] },
+                  { name: "Review", count: 3, tasks: ["TL ratings — Eng", "Bonus overrides"] },
+                  { name: "Done", count: 10, tasks: ["Survey #4 published"] },
                 ].map((col, idx) => (
                   <div key={col.name} className="rounded-lg border border-border bg-card p-3">
                     <div className="flex items-center justify-between">
@@ -328,20 +450,20 @@ function Timeline() {
     {
       icon: Clock,
       eyebrow: "Before",
-      title: "HR inefficiency",
-      body: "Disconnected ATS, spreadsheets, project tools, payroll exports. Latency between work done and value paid.",
+      title: "Tool sprawl",
+      body: "ATS, spreadsheets, chat groups and payroll exports — disconnected, lagging, and impossible to audit.",
     },
     {
       icon: Sparkles,
       eyebrow: "With Mandai",
-      title: "AI automation",
-      body: "Meetings extract tasks. Tasks update KPIs. KPIs feed performance. Performance recalculates payroll. Continuously.",
+      title: "AI loop",
+      body: "Telegram intake feeds the pipeline. Tasks update KPIs. KPIs feed bonuses. Payroll recomputes — continuously.",
     },
     {
       icon: GitBranch,
       eyebrow: "Outcome",
-      title: "Unified system",
-      body: "One workspace where recruitment, operations, delivery and finance share the same live state.",
+      title: "One system",
+      body: "HR steers the company. Team Leaders steer their team. Everyone reads the same live state.",
     },
   ];
   return (
@@ -350,7 +472,7 @@ function Timeline() {
         <div className="max-w-2xl">
           <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">The shift</div>
           <h2 className="mt-3 font-display text-4xl font-semibold tracking-tight sm:text-5xl">
-            From inefficiency to unified, automated HR.
+            From tool sprawl to a unified HR loop.
           </h2>
         </div>
         <div className="mt-14 relative">
@@ -390,7 +512,7 @@ function CTASection() {
           <span className="text-primary">Start operating.</span>
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-muted-foreground">
-          Sign in and explore a populated demo workspace, or stand up your own organization in one step.
+          Sign in as HR or Team Leader and explore a populated demo workspace.
         </p>
         <div className="mt-8">
           <Link
@@ -412,7 +534,7 @@ function Footer() {
       <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 py-8 text-xs text-muted-foreground sm:flex-row">
         <div className="flex items-center gap-2">
           <LogoMark />
-          <span>Mandai · AI Operations Layer for Enterprise HR</span>
+          <span>Mandai · AI HR Operating System</span>
         </div>
         <div className="font-mono">© {new Date().getFullYear()} Mandai</div>
       </div>
