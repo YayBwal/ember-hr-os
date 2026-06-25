@@ -167,12 +167,11 @@ function PipelinePage() {
 
   const update = useMutation({
     mutationFn: async ({ ids, status, hold_reason }: { ids: string[]; status: Stage; hold_reason?: string | null }) => {
-      const patch: Record<string, unknown> = { status };
+      const patch: { status: Stage; hold_reason?: string | null; held_at?: string | null } = { status };
       if (status === "hold") {
         patch.hold_reason = hold_reason ?? null;
         patch.held_at = new Date().toISOString();
       } else if (hold_reason === null) {
-        // explicit recall — clear hold fields
         patch.hold_reason = null;
         patch.held_at = null;
       }
