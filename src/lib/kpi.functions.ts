@@ -84,8 +84,8 @@ export const setKpiBonusOverride = createServerFn({ method: "POST" })
     const { error } = await context.supabase.rpc("set_kpi_bonus_override", {
       _employee_id: data.employeeId,
       _period_month: data.periodMonth,
-      _amount_mmk: data.amountMmk,
-      _note: data.note,
+      _amount_mmk: data.amountMmk as number,
+      _note: data.note as string,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
