@@ -19,9 +19,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare, PauseCircle, Undo2 } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare, PauseCircle, Undo2, Send, Eye } from "lucide-react";
 import { parseCv, scoreManual, analyzeCandidate, compareCandidates, type DeepAnalysis, type ComparisonResult } from "@/lib/pipeline.functions";
+import { getCvSignedUrl } from "@/lib/cv-intake.functions";
 import { approveCandidate } from "@/lib/operations.functions";
+import { ROLE_PRESETS } from "@/lib/roles";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
   head: () => ({ meta: [{ title: "Pipeline · Mandai" }] }),
@@ -44,16 +46,6 @@ const STAGE_LABELS: Record<Stage, string> = {
   rejected: "Rejected",
 };
 
-const ROLE_PRESETS = [
-  "Software Engineer",
-  "Senior Engineer",
-  "Product Manager",
-  "Designer",
-  "Operations Analyst",
-  "Finance Analyst",
-  "HR Specialist",
-  "Customer Success",
-];
 
 type Candidate = {
   id: string;
@@ -68,6 +60,8 @@ type Candidate = {
   trainee_salary_mmk: number | null;
   hold_reason: string | null;
   held_at: string | null;
+  source: string | null;
+  cv_storage_path: string | null;
 };
 
 const PAGE_SIZE = 25;
@@ -108,7 +102,7 @@ function PipelinePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk, hold_reason, held_at")
+        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk, hold_reason, held_at, source, cv_storage_path")
         .order("ai_match_score", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Candidate[];
@@ -234,7 +228,7 @@ function PipelinePage() {
             <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Pipeline</div>
             <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Candidates</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Screening → Interview → Hired. Built for high-volume days.
+              Screening → Interview → Hired. Telegram applications land here automatically.
             </p>
           </div>
           <Button onClick={() => setOpen(true)} className="gap-2">
@@ -427,7 +421,18 @@ function PipelinePage() {
                   />
                 </div>
                 <div className="col-span-3 min-w-0">
-                  <div className="font-medium truncate">{c.full_name}</div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="font-medium truncate">{c.full_name}</div>
+                    {c.source === "telegram" && (
+                      <span
+                        title="Applied via Telegram bot"
+                        className="inline-flex items-center gap-0.5 rounded bg-sky-500/10 px-1 py-0.5 text-[9px] font-mono uppercase tracking-wider text-sky-600"
+                      >
+                        <Send className="h-2.5 w-2.5" /> TG
+                      </span>
+                    )}
+                    {c.cv_storage_path && <CvLinkButton path={c.cv_storage_path} />}
+                  </div>
                   <div className="text-xs text-muted-foreground truncate">{c.email ?? "—"}</div>
                   {c.skills && c.skills.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
@@ -645,7 +650,7 @@ function AddCandidateDialog({
   const scoreManualFn = useServerFn(scoreManual);
 
   const [tab, setTab] = useState<"upload" | "manual">("upload");
-  const [role, setRole] = useState(ROLE_PRESETS[0]);
+  const [role, setRole] = useState<string>(ROLE_PRESETS[0]);
   const [customRole, setCustomRole] = useState("");
   const finalRole = role === "__custom__" ? customRole.trim() : role;
 
@@ -884,6 +889,33 @@ function fileToBase64(file: File): Promise<string> {
     };
     reader.readAsDataURL(file);
   });
+}
+
+function CvLinkButton({ path }: { path: string }) {
+  const getUrl = useServerFn(getCvSignedUrl);
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation();
+        if (busy) return;
+        setBusy(true);
+        try {
+          const { url } = await getUrl({ data: { storage_path: path } });
+          window.open(url, "_blank", "noopener,noreferrer");
+        } catch (err) {
+          toast.error((err as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+      title="View uploaded CV"
+      className="inline-flex items-center rounded border border-border bg-background p-0.5 text-muted-foreground hover:border-primary/40 hover:text-primary"
+    >
+      {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Eye className="h-2.5 w-2.5" />}
+    </button>
+  );
 }
 
 function MatchBar({ score }: { score: number }) {
