@@ -891,6 +891,33 @@ function fileToBase64(file: File): Promise<string> {
   });
 }
 
+function CvLinkButton({ path }: { path: string }) {
+  const getUrl = useServerFn(getCvSignedUrl);
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      onClick={async (e) => {
+        e.stopPropagation();
+        if (busy) return;
+        setBusy(true);
+        try {
+          const { url } = await getUrl({ data: { storage_path: path } });
+          window.open(url, "_blank", "noopener,noreferrer");
+        } catch (err) {
+          toast.error((err as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+      title="View uploaded CV"
+      className="inline-flex items-center rounded border border-border bg-background p-0.5 text-muted-foreground hover:border-primary/40 hover:text-primary"
+    >
+      {busy ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <Eye className="h-2.5 w-2.5" />}
+    </button>
+  );
+}
+
 function MatchBar({ score }: { score: number }) {
   const pct = Math.max(0, Math.min(100, score));
   return (
