@@ -94,6 +94,7 @@ export type Database = {
         Row: {
           ai_match_score: number
           created_at: string
+          cv_storage_path: string | null
           email: string | null
           full_name: string
           held_at: string | null
@@ -104,13 +105,16 @@ export type Database = {
           org_id: string
           role_applied: string
           skills: string[]
+          source: string
           status: Database["public"]["Enums"]["candidate_status"]
+          telegram_chat_id: number | null
           trainee_salary_mmk: number | null
           updated_at: string
         }
         Insert: {
           ai_match_score?: number
           created_at?: string
+          cv_storage_path?: string | null
           email?: string | null
           full_name: string
           held_at?: string | null
@@ -121,13 +125,16 @@ export type Database = {
           org_id: string
           role_applied: string
           skills?: string[]
+          source?: string
           status?: Database["public"]["Enums"]["candidate_status"]
+          telegram_chat_id?: number | null
           trainee_salary_mmk?: number | null
           updated_at?: string
         }
         Update: {
           ai_match_score?: number
           created_at?: string
+          cv_storage_path?: string | null
           email?: string | null
           full_name?: string
           held_at?: string | null
@@ -138,7 +145,9 @@ export type Database = {
           org_id?: string
           role_applied?: string
           skills?: string[]
+          source?: string
           status?: Database["public"]["Enums"]["candidate_status"]
+          telegram_chat_id?: number | null
           trainee_salary_mmk?: number | null
           updated_at?: string
         }
