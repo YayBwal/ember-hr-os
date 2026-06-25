@@ -90,10 +90,11 @@ function PayrollTab() {
   const runFn = useServerFn(runPayroll);
   const bonusFn = useServerFn(addBonus);
   const dedFn = useServerFn(addDeduction);
-  const [period] = useState<string>(() => {
-    const d = new Date(); d.setUTCDate(1);
-    return d.toISOString().slice(0, 10);
+  const [periodInput, setPeriodInput] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   });
+  const period = `${periodInput}-01`;
   const [dialog, setDialog] = useState<{ kind: "bonus" | "deduction"; emp: Emp } | null>(null);
   const [amount, setAmount] = useState<string>("");
   const [reason, setReason] = useState<string>("");
