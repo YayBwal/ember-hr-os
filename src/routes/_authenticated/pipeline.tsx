@@ -421,7 +421,18 @@ function PipelinePage() {
                   />
                 </div>
                 <div className="col-span-3 min-w-0">
-                  <div className="font-medium truncate">{c.full_name}</div>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <div className="font-medium truncate">{c.full_name}</div>
+                    {c.source === "telegram" && (
+                      <span
+                        title="Applied via Telegram bot"
+                        className="inline-flex items-center gap-0.5 rounded bg-sky-500/10 px-1 py-0.5 text-[9px] font-mono uppercase tracking-wider text-sky-600"
+                      >
+                        <Send className="h-2.5 w-2.5" /> TG
+                      </span>
+                    )}
+                    {c.cv_storage_path && <CvLinkButton path={c.cv_storage_path} />}
+                  </div>
                   <div className="text-xs text-muted-foreground truncate">{c.email ?? "—"}</div>
                   {c.skills && c.skills.length > 0 && (
                     <div className="mt-1 flex flex-wrap gap-1">
