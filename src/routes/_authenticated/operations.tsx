@@ -174,6 +174,17 @@ function Leaderboard() {
             <SelectItem value="completed">Completed Tasks</SelectItem>
           </SelectContent>
         </Select>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Badge variant={pendingReviews && pendingReviews > 0 ? "default" : "outline"} className="ml-auto gap-1 cursor-help">
+                <ClipboardList className="h-3 w-3" />
+                {pendingReviews ?? 0} pending review{(pendingReviews ?? 0) === 1 ? "" : "s"}
+              </Badge>
+            </TooltipTrigger>
+            <TooltipContent>Team members who haven't submitted peer reviews this month.</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
