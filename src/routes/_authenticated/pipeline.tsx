@@ -546,7 +546,63 @@ function PipelinePage() {
         candidates={all}
         onClose={() => setCompareOpen(false)}
       />
+      <HoldDialog
+        candidates={holding}
+        onClose={() => setHolding(null)}
+        onConfirm={(reason) => holdMut.mutate({ ids: (holding ?? []).map((c) => c.id), reason })}
+        pending={holdMut.isPending}
+      />
     </AppShell>
+  );
+}
+
+function daysAgo(iso: string) {
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(ms / 86400000));
+}
+
+function HoldDialog({
+  candidates, onClose, onConfirm, pending,
+}: {
+  candidates: Candidate[] | null;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+  pending: boolean;
+}) {
+  const [reason, setReason] = useState("Position currently full — keep warm for next opening");
+  const open = !!candidates && candidates.length > 0;
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Place on hold</DialogTitle>
+          <DialogDescription>
+            Park {candidates?.length ?? 0} candidate{(candidates?.length ?? 0) === 1 ? "" : "s"} in the talent pool. Recall them later when a new opening matches.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="hold-reason">Reason</Label>
+          <Textarea
+            id="hold-reason"
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Why are we holding? (e.g. position full, budget freeze, strong but no fit yet)"
+          />
+          {candidates && candidates.length <= 5 && (
+            <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+              {candidates.map((c) => c.full_name).join(", ")}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>Cancel</Button>
+          <Button onClick={() => onConfirm(reason.trim() || "On hold")} disabled={pending}>
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Place on hold"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
