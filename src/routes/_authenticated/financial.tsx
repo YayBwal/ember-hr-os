@@ -268,20 +268,6 @@ function PromotionsTab() {
     return { promotedThisQuarter, deltaThisMonth, avgTenure };
   }, [promotions, employees]);
 
-  // Suggested promotions: KPI >= 90 + not promoted in 180 days
-  const suggestions = useMemo(() => {
-    const cutoff = Date.now() - 180 * 86400000;
-    return (employees ?? []).filter((e) => {
-      if ((e.performance_score ?? 0) < 90) return false;
-      if (e.level === "lead") return false;
-      const last = lastPromotionFor(e.id);
-      // count "real" promotion (not the baseline hire row)
-      const realLast = historyFor(e.id).find((p) => p.from_level !== null);
-      const lastDate = realLast ? new Date(realLast.effective_date).getTime() : (e.join_date ? new Date(e.join_date).getTime() : 0);
-      return lastDate < cutoff || !last;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employees, promotions]);
 
   return (
     <div>
