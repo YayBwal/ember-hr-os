@@ -1334,6 +1334,7 @@ export type Database = {
           kpi_score: number
           level: string
           override_note: string
+          overtime_hours: number
           system_bonus_mmk: number
           system_eligible: boolean
           task_completion_pct: number

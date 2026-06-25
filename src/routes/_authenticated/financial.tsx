@@ -90,10 +90,11 @@ function PayrollTab() {
   const runFn = useServerFn(runPayroll);
   const bonusFn = useServerFn(addBonus);
   const dedFn = useServerFn(addDeduction);
-  const [period] = useState<string>(() => {
-    const d = new Date(); d.setUTCDate(1);
-    return d.toISOString().slice(0, 10);
+  const [periodInput, setPeriodInput] = useState<string>(() => {
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   });
+  const period = `${periodInput}-01`;
   const [dialog, setDialog] = useState<{ kind: "bonus" | "deduction"; emp: Emp } | null>(null);
   const [amount, setAmount] = useState<string>("");
   const [reason, setReason] = useState<string>("");
@@ -144,13 +145,23 @@ function PayrollTab() {
 
   return (
     <div>
-      <div className="flex items-start justify-between">
-        <p className="text-sm text-muted-foreground">Period {period.slice(0, 7)}. Total <span className="font-medium text-foreground">{formatMMKCompact(run?.total_mmk ?? 0)}</span>.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs">Period</Label>
+            <Input type="month" value={periodInput} onChange={(e) => setPeriodInput(e.target.value)} className="h-9 w-[160px]" />
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Total <span className="font-medium text-foreground">{formatMMKCompact(run?.total_mmk ?? 0)}</span>.
+            Payroll is finalized only when you click <span className="font-medium text-foreground">Recompute</span>. Live KPI and attendance changes flow into KPI Calculation immediately.
+          </p>
+        </div>
         <Button onClick={() => runMut.mutate()} disabled={runMut.isPending}>
           {runMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Recompute payroll
         </Button>
       </div>
+
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-sm">
@@ -667,7 +678,13 @@ function KpiTab() {
   const filters = (
     <div className="flex flex-wrap items-end gap-3">
       <div className="space-y-1">
-        <Label className="text-xs">Period</Label>
+        <Label className="text-xs flex items-center gap-1.5">
+          Period
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live · Operations sync
+          </span>
+        </Label>
         <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} className="h-9 w-[160px]" />
       </div>
       <div className="space-y-1">
@@ -726,6 +743,7 @@ function KpiTab() {
                   <th className="px-4 py-3 text-right">Tasks</th>
                   <th className="px-4 py-3 text-right">Attendance</th>
                   <th className="px-4 py-3 text-right">Hours</th>
+                  <th className="px-4 py-3 text-right">OT hrs</th>
                   <th className="px-4 py-3 text-right">KPI</th>
                   <th className="px-4 py-3 text-center">Eligible</th>
                   <th className="px-4 py-3 text-right">Bonus</th>
@@ -733,12 +751,12 @@ function KpiTab() {
               </thead>
               <tbody>
                 {isLoading && (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     <Loader2 className="mx-auto h-4 w-4 animate-spin" />
                   </td></tr>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No employees match the filters.</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">No employees match the filters.</td></tr>
                 )}
                 {filtered.map((r) => {
                   const isOpen = expanded === r.employee_id;
@@ -768,6 +786,7 @@ function KpiTab() {
                         </td>
                         <td className="px-4 py-3 text-right">{Number(r.attendance_pct).toFixed(0)}%</td>
                         <td className="px-4 py-3 text-right">{Number(r.working_hours).toFixed(0)}h</td>
+                        <td className="px-4 py-3 text-right">{Number(r.overtime_hours ?? 0) > 0 ? <span className="text-amber-600 font-medium">{Number(r.overtime_hours).toFixed(0)}h</span> : <span className="text-muted-foreground">—</span>}</td>
                         <td className="px-4 py-3 text-right font-medium">{Number(r.kpi_score).toFixed(1)}</td>
                         <td className="px-4 py-3 text-center">
                           {r.final_eligible
@@ -780,7 +799,7 @@ function KpiTab() {
                       </tr>
                       {isOpen && (
                         <tr className="border-t border-border bg-muted/20">
-                          <td colSpan={9} className="px-4 py-3 text-xs text-muted-foreground">
+                          <td colSpan={10} className="px-4 py-3 text-xs text-muted-foreground">
                             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                               <div><span className="text-foreground font-medium">{r.days_present}</span> days present</div>
                               <div><span className="text-foreground font-medium">{r.days_late}</span> days late</div>
