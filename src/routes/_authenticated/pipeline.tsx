@@ -446,8 +446,13 @@ function PipelinePage() {
                 <div className="col-span-2">
                   <MatchBar score={Number(c.ai_match_score)} />
                 </div>
-                <div className="col-span-2 text-xs text-muted-foreground truncate" title={c.next_action ?? ""}>
-                  {c.next_action ?? "—"}
+                <div className="col-span-2 text-xs text-muted-foreground truncate" title={c.status === "hold" ? (c.hold_reason ?? "") : (c.next_action ?? "")}>
+                  {c.status === "hold" ? (
+                    <span>
+                      <span className="text-amber-600">⏸ {c.hold_reason ?? "On hold"}</span>
+                      {c.held_at && <span className="ml-1 text-[10px]">· {daysAgo(c.held_at)}d</span>}
+                    </span>
+                  ) : (c.next_action ?? "—")}
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-1">
                   <button
