@@ -108,10 +108,10 @@ function PayrollTab() {
       return (data ?? []) as Emp[];
     },
   });
-  const { data: run } = useQuery({
+  const { data: run, isLoading: runLoading } = useQuery({
     queryKey: ["payroll_runs", period],
     queryFn: async () => {
-      const { data } = await supabase.from("payroll_runs").select("id,period_month,total_mmk,last_recomputed_at").eq("period_month", period).maybeSingle();
+      const { data } = await supabase.from("payroll_runs").select("id,period_month,total_mmk,last_recomputed_at").eq("period_month", period).order("last_recomputed_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
       return data;
     },
   });
@@ -135,8 +135,14 @@ function PayrollTab() {
 
   const runMut = useMutation({
     mutationFn: () => runFn({ data: { periodMonth: period } }),
-    onSuccess: () => { toast.success("Payroll recomputed"); qc.invalidateQueries({ queryKey: ["payroll_runs", period] }); qc.invalidateQueries({ queryKey: ["payroll_lines"] }); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: async (res: { ok: boolean; count: number }) => {
+      toast.success(`Payroll recomputed for ${res?.count ?? 0} employees`);
+      await qc.refetchQueries({ queryKey: ["payroll_runs", period] });
+      await qc.invalidateQueries({ queryKey: ["payroll_lines"] });
+      qc.invalidateQueries({ queryKey: ["kpi_dashboard"] });
+      qc.invalidateQueries({ queryKey: ["kpi_overrides", period] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Recompute failed"),
   });
 
   const submitDialog = async () => {
@@ -179,7 +185,7 @@ function PayrollTab() {
         </Button>
       </div>
 
-      {!run && (
+      {!run && !runLoading && (
         <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
           Payroll has not been computed for this period. Click <span className="font-medium text-foreground">Recompute Payroll</span> to generate results.
         </div>
