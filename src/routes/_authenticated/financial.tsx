@@ -197,7 +197,7 @@ function PayrollTab() {
             <tr>
               <th className="px-4 py-3 text-left">Employee</th>
               <th className="px-4 py-3 text-right">Base</th>
-              <th className="px-4 py-3 text-right">KPI</th>
+              <th className="px-4 py-3 text-center">KPI</th>
               <th className="px-4 py-3 text-right">KPI Bonus</th>
               <th className="px-4 py-3 text-right">Extra Bonus</th>
               <th className="px-4 py-3 text-right">Overtime</th>
