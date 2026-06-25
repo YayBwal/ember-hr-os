@@ -569,6 +569,7 @@ function PipelinePage() {
         onConfirm={(reason) => holdMut.mutate({ ids: (holding ?? []).map((c) => c.id), reason })}
         pending={holdMut.isPending}
       />
+      <NotifyDialog candidate={notifying} onClose={() => setNotifying(null)} />
     </AppShell>
   );
 }
