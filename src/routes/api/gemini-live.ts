@@ -11,11 +11,26 @@ export const Route = createFileRoute("/api/gemini-live")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-          return new Response("expected websocket upgrade", { status: 400 });
+        const url = new URL(request.url);
+        const isUpgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
+
+        // Non-upgrade probe: returns config + auth status as JSON so the client
+        // can show a precise error instead of a generic "Connection error".
+        if (!isUpgrade) {
+          const hasKey = !!process.env.GEMINI_API_KEY;
+          const hasSb = !!process.env.SUPABASE_URL && !!process.env.SUPABASE_PUBLISHABLE_KEY;
+          const hasPair = !!(globalThis as unknown as { WebSocketPair?: unknown }).WebSocketPair;
+          return new Response(
+            JSON.stringify({
+              ok: hasKey && hasSb && hasPair,
+              hasGeminiKey: hasKey,
+              hasSupabaseEnv: hasSb,
+              hasWebSocketPair: hasPair,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
         }
 
-        const url = new URL(request.url);
         const token = url.searchParams.get("token") ?? "";
         if (!token) return new Response("Unauthorized", { status: 401 });
 
@@ -33,13 +48,24 @@ export const Route = createFileRoute("/api/gemini-live")({
         if (!apiKey) return new Response("GEMINI_API_KEY not configured", { status: 500 });
 
         // Connect upstream to Gemini Live via fetch-upgrade (Cloudflare Workers API).
-        const upstreamRes = await fetch(`${GEMINI_WS}?key=${apiKey}`, {
-          headers: { Upgrade: "websocket" },
-        });
+        let upstreamRes: Response;
+        try {
+          upstreamRes = await fetch(`${GEMINI_WS}?key=${apiKey}`, {
+            headers: { Upgrade: "websocket" },
+          });
+        } catch (err) {
+          console.error("[gemini-live] upstream fetch threw:", err);
+          return new Response(`Upstream fetch failed: ${(err as Error).message}`, { status: 502 });
+        }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const upstream = (upstreamRes as unknown as { webSocket: any }).webSocket;
         if (!upstream) {
-          return new Response("Failed to connect to Gemini Live", { status: 502 });
+          const body = await upstreamRes.text().catch(() => "");
+          console.error("[gemini-live] no webSocket on upstream", upstreamRes.status, body);
+          return new Response(
+            `Gemini upstream did not upgrade (status ${upstreamRes.status}): ${body.slice(0, 200)}`,
+            { status: 502 },
+          );
         }
         upstream.accept();
 

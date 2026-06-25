@@ -27,11 +27,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
-const VoiceAssistant = lazy(() =>
-  import("@/components/voice-assistant").then((m) => ({ default: m.VoiceAssistant })),
-);
-const AiCopilot = lazy(() =>
-  import("@/components/ai-copilot").then((m) => ({ default: m.AiCopilot })),
+const AssistantDock = lazy(() =>
+  import("@/components/assistant-dock").then((m) => ({ default: m.AssistantDock })),
 );
 
 function DeferredAssistants() {
@@ -47,8 +44,7 @@ function DeferredAssistants() {
   if (!ready) return null;
   return (
     <Suspense fallback={null}>
-      <VoiceAssistant />
-      <AiCopilot />
+      <AssistantDock />
     </Suspense>
   );
 }

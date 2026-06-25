@@ -128,6 +128,33 @@ export class GeminiLiveSession {
       return;
     }
 
+    // Probe proxy config first so we can surface a clear reason if mis-wired.
+    try {
+      const probe = await fetch("/api/gemini-live", { method: "GET" });
+      if (probe.ok) {
+        const j = (await probe.json()) as {
+          ok: boolean;
+          hasGeminiKey: boolean;
+          hasSupabaseEnv: boolean;
+          hasWebSocketPair: boolean;
+        };
+        if (!j.ok) {
+          const missing: string[] = [];
+          if (!j.hasGeminiKey) missing.push("GEMINI_API_KEY");
+          if (!j.hasSupabaseEnv) missing.push("SUPABASE env");
+          if (!j.hasWebSocketPair) missing.push("WebSocket runtime");
+          this.emit({
+            type: "error",
+            message: `Voice not available: missing ${missing.join(", ")}. Try Chat mode instead.`,
+          });
+          this.setStatus("error");
+          return;
+        }
+      }
+    } catch {
+      /* probe is best-effort; continue to WS attempt */
+    }
+
     // Mic permission first.
     try {
       this.micStream = await navigator.mediaDevices.getUserMedia({
@@ -210,11 +237,19 @@ export class GeminiLiveSession {
     };
 
     ws.onerror = () => {
-      this.emit({ type: "error", message: "Connection error" });
+      this.emit({ type: "error", message: "Voice connection error. Switch to Chat mode if it persists." });
       this.setStatus("error");
     };
-    ws.onclose = () => {
-      if (!this.closed) this.setStatus("idle");
+    ws.onclose = (ev) => {
+      if (this.closed) return;
+      // 1000 = normal. Anything else with a reason → surface it so user knows why.
+      if (ev.code !== 1000 && ev.code !== 1005) {
+        const reason = ev.reason || `WebSocket closed (code ${ev.code})`;
+        this.emit({ type: "error", message: reason });
+        this.setStatus("error");
+      } else {
+        this.setStatus("idle");
+      }
     };
   }
 
