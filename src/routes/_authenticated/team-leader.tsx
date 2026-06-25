@@ -167,7 +167,17 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
           </div>
         </div>
         <div>
-          <Label className="text-xs">Rate members</Label>
+          <Label className="flex items-center gap-1.5 text-xs">
+            <span>Team Leader Rating · Productivity &amp; Quality</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  Your direct rating of each member. This is the primary input to their monthly KPI (alongside attendance, task completion, and peer reviews). HR Override exists for exceptional cases only.
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </Label>
           <div className="mt-1 space-y-2">
             {(members ?? []).map((m) => {
               const r = (ratings ?? []).find((x) => x.employee_id === m.id);
