@@ -123,18 +123,30 @@ export function VoiceAssistant() {
               <X className="h-3 w-3" />
             </Button>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 text-sm">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 text-sm">
             {lines.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 စကားပြောပါ — Speak (Burmese or English). Latency ~300ms.
               </p>
             )}
             {lines.map((l) => (
-              <div key={l.id} className={l.who === "ai" ? "text-foreground" : "text-muted-foreground"}>
-                <span className="text-[10px] font-mono uppercase tracking-[0.18em] mr-1">
+              <div
+                key={l.id}
+                className={`${l.who === "ai" ? "text-foreground" : "text-muted-foreground"} ${
+                  l.partial ? "opacity-70 italic" : ""
+                }`}
+              >
+                <span
+                  className={`text-[10px] font-mono uppercase tracking-[0.18em] mr-1 ${
+                    l.who === "ai" ? "text-primary" : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
                   {l.who === "ai" ? "AI" : "YOU"}
                 </span>
                 {l.text}
+                {l.partial && (
+                  <span className="ml-1 inline-block w-1 h-3 align-middle bg-current animate-pulse" />
+                )}
               </div>
             ))}
             {status === "thinking" && (
