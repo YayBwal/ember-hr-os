@@ -737,6 +737,7 @@ function KpiTab() {
                   <th className="px-4 py-3 text-right">Tasks</th>
                   <th className="px-4 py-3 text-right">Attendance</th>
                   <th className="px-4 py-3 text-right">Hours</th>
+                  <th className="px-4 py-3 text-right">OT hrs</th>
                   <th className="px-4 py-3 text-right">KPI</th>
                   <th className="px-4 py-3 text-center">Eligible</th>
                   <th className="px-4 py-3 text-right">Bonus</th>
