@@ -221,12 +221,9 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
   const open = !!employeeId;
   const qc = useQueryClient();
   const logAtt = useServerFn(logAttendance);
-  const setPQ = useServerFn(setProductivityQuality);
   const [att, setAtt] = useState<{ date: string; status: "present" | "late" | "absent" | "leave"; minutes: number }>({
     date: new Date().toISOString().slice(0, 10), status: "present", minutes: 0,
   });
-  const [prod, setProd] = useState(80);
-  const [qual, setQual] = useState(80);
 
   const { data: emp } = useQuery({
     queryKey: ["employee", employeeId],
@@ -283,10 +280,7 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
       qc.invalidateQueries({ queryKey: ["employee-kpis"] });
     },
   });
-  const submitPQ = useMutation({
-    mutationFn: () => setPQ({ data: { employeeId: employeeId!, productivity: prod, quality: qual } }),
-    onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["employee_kpi_current", employeeId] }); qc.invalidateQueries({ queryKey: ["employee-kpis"] }); },
-  });
+
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
