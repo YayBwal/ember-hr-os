@@ -17,11 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Loader2, Plus, Users, Trophy, UserPlus, Info, ClipboardList } from "lucide-react";
+import { Loader2, Plus, Users, Trophy, UserPlus } from "lucide-react";
 import { formatMMKCompact, initials } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
-import { createTeam, deleteTeam, logAttendance, setProductivityQuality } from "@/lib/operations.functions";
+import { createTeam, deleteTeam, logAttendance } from "@/lib/operations.functions";
 import { TeamDetailSheet } from "@/components/team-detail-sheet";
+
 
 export const Route = createFileRoute("/_authenticated/operations")({
   head: () => ({ meta: [{ title: "Operations · Mandai" }] }),
