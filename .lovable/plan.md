@@ -1,49 +1,53 @@
-## KPI Calculation Module
+## Goal
+Single source of truth for Telegram link status (`employees.telegram_chat_id`), live-updating Feedbacks badge, simplified + responsive Operations leaderboard, KPI/Task% based on active work only.
 
-A new **KPI Calculation** tab inside the Financial page, sitting beside Payroll and Promotions. It's a read-only HR performance-to-compensation dashboard, fully derived from existing operational data (no manual inputs).
+## Changes
 
-### 1. Database (one migration)
+### 1. Realtime on `employees` (migration)
+Add `employees` to the `supabase_realtime` publication so Telegram link updates push to clients instantly.
 
-- Add `employment_type` enum (`remote`, `on_site`) and column on `employees` (default `on_site`).
-- Add Postgres function `compute_kpi_dashboard(_org_id uuid, _period_month date)` returning one row per employee with:
-  - `employee_id`, `full_name`, `department`, `position`, `level`, `team_id`, `employment_type`
-  - `base_salary_mmk` (from `employees.monthly_base_mmk`)
-  - `task_completion_pct` — completed tasks / assigned tasks in the period (from `tasks` joined to Team Leader–reviewed status, falling back to `employee_kpis.task_completion`)
-  - `attendance_pct` and `attendance_days_present/absent/late` (from `attendance` for the period)
-  - `working_hours` — derived from attendance days × standard daily hours (8 on-site / configurable remote)
-  - `kpi_score` (from `employee_kpis.kpi` for that period; recompute if missing)
-  - `bonus_eligible` (boolean: kpi ≥ 70 and attendance ≥ 85 — different thresholds for `remote` vs `on_site`)
-  - `bonus_amount_mmk` — projected bonus using the same formula as `recompute_payroll` so values match the Payroll tab exactly
-- Function runs `SECURITY DEFINER`, scoped to caller's org via `has_role`/membership; grants to `authenticated`.
-- No changes to existing payroll/promotion logic — only additive.
+```sql
+ALTER PUBLICATION supabase_realtime ADD TABLE public.employees;
+```
 
-### 2. Server function
+No new tables, no new fields — `telegram_chat_id` already exists and is already written by the bot webhook on `/start` linking.
 
-- `src/lib/kpi.functions.ts` → `getKpiDashboard({ periodMonth })` wraps the RPC, plus `setEmploymentType({ employeeId, type })`.
-- Uses `requireSupabaseAuth`. All aggregation stays in Postgres for consistency.
+### 2. Feedbacks page — live badge (`src/routes/_authenticated/feedbacks.tsx`)
+- Add a `useEffect` Realtime subscription on `public.employees` (UPDATE events) that calls `queryClient.invalidateQueries` for the employees list.
+- Existing badge already reads `telegram_chat_id`; it will flip from "Not linked" → "Linked" without refresh.
+- Channel torn down on unmount.
 
-### 3. UI: new tab in Financial
+### 3. Operations Leaderboard (`src/routes/_authenticated/operations.tsx`)
 
-Add a third pill `KPI Calculation` next to Payroll / Promotions in `src/routes/_authenticated/financial.tsx`. Layout:
+**Query changes**
+- `employees` select: add `telegram_chat_id`, drop `salary_grade` from the projection (unused in new columns; keep it on the profile sheet query).
+- `tasks` query: only count **active** tasks (`status IN ('todo','in_progress')`) for the active/total used in Task %. Drop the `completed` counter from the row shape.
+- Task % per employee = derived from `employee_kpis.task_completion` (already active-only per `recompute_employee_kpi`). No change needed there.
 
-- **Filter bar** (top): period month picker, department select, team select, employment type select (All / Remote / On-Site), employee search.
-- **Summary cards** (4): Avg KPI, Bonus-Eligible Count, Avg Attendance, Total Projected Bonus.
-- **Table** with columns: Employee · Type (Remote/On-Site badge) · Base Salary · Task Completion · Attendance · Working Hours · KPI Score · Bonus Eligible · Bonus Amount. Rows expandable for breakdown (tasks done/assigned, days present/absent/late).
-- **Employment type toggle** inline on each row (small select) — only edit affordance; everything else is derived.
-- Responsive: cards stack on mobile, table becomes card list < md.
-- Uses TanStack Query with `staleTime: 60s` to avoid recompute thrash; invalidates when payroll is recomputed.
+**Columns kept**: Rank · Employee (name/position/level) · Department · Team · KPI · Task % · Attendance % · Telegram Status.
+**Removed**: Done, Active, Grade. Remove the matching sort option ("Completed Tasks") — keep KPI and Attendance sorts.
 
-### 4. Sync & edge cases
+**Telegram badge cell**: green "Linked" pill when `telegram_chat_id` is set, muted "Not Linked" otherwise.
 
-- New employee with no attendance/tasks → KPI shown as "—", bonus 0, not eligible.
-- Missing `employee_kpis` row → server computes on the fly via existing `recompute_employee_kpi`.
-- Remote vs on-site: working hours formula and bonus thresholds parametrized in the RPC; HR policies remain transparent in SQL.
-- Recompute Payroll button continues to work unchanged; KPI dashboard reads same source-of-truth.
+**Realtime**: same `employees` channel subscription as Feedbacks, invalidating the employees query.
 
-### Technical notes
-- No new routes; just a tab → preserves existing routing, role guards, and Team Leader isolation.
-- Zero breaking changes to Promotion, Payroll, Team Session, or HR workflows.
-- All money formatting reuses existing `formatMMK` helper.
+### 4. Responsive layout
+- Desktop (`md:` and up): keep the `<table>`.
+- Mobile (`< md`): hide the table, render a stacked card list. Each card:
+  - Header row: avatar + name + position + Telegram badge
+  - 3-column metric grid: KPI · Task % · Attendance %
+  - Tap card → opens existing `EmployeeProfileSheet`
+- Implementation: one `rows` array, two render branches (`hidden md:block` for table wrapper, `md:hidden` for cards).
 
-### Open question
-Default working-hours rule: on-site = 8h × present days; remote = 8h × present days as well, or a different cadence (e.g. logged hours)? I'll default both to 8h × present days unless you specify otherwise.
+### 5. Performance
+- Narrow selects (drop unused `salary_grade` from leaderboard query).
+- Single tasks scan (already in place) — now smaller because we ignore `done`/`cancelled`.
+- One Realtime channel per page (Feedbacks, Operations); both teardown on unmount.
+
+## Out of scope
+No schema additions, no new sync jobs, no changes to KPI formulas (the existing `recompute_employee_kpi` already excludes completed tasks from Task %).
+
+## Files touched
+- `supabase/migrations/...` (publication ADD TABLE)
+- `src/routes/_authenticated/operations.tsx`
+- `src/routes/_authenticated/feedbacks.tsx`
