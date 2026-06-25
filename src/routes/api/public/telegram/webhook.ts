@@ -118,6 +118,33 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
     .eq("telegram_chat_id", chatId)
     .maybeSingle();
 
+  // /help — explain how to link and what to do on errors
+  if (text === "/help") {
+    await tgSendMessage(
+      chatId,
+      [
+        "ℹ️ <b>HR Feedback Bot — Help</b>",
+        "",
+        "<b>How to link your account</b>",
+        "1. Send /start",
+        "2. Reply with your <b>Employee ID</b> in the format <code>EMP-1234</code>",
+        "3. Once linked, you can take surveys or report incidents anonymously",
+        "",
+        "<b>If your Employee ID is invalid</b>",
+        "• Double-check the exact code (e.g. <code>EMP-9915</code>, dash included, no spaces)",
+        "• Ask HR to confirm or assign your Employee ID",
+        "• Then send the corrected code here",
+        "",
+        "<b>Commands</b>",
+        "/start — begin or restart linking",
+        "/help — show this message",
+        "/cancel — cancel the current action",
+      ].join("\n"),
+      removeKeyboard(),
+    );
+    return;
+  }
+
   // /start always greets; unlinked users go through code lookup below
   if (text === "/start") {
     if (emp) {
