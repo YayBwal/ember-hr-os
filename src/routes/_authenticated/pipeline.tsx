@@ -166,8 +166,17 @@ function PipelinePage() {
   useEffect(() => { setPage(0); setSelected(new Set()); }, [activeStage, q, minScore, roleFilter]);
 
   const update = useMutation({
-    mutationFn: async ({ ids, status }: { ids: string[]; status: Stage }) => {
-      const { error } = await supabase.from("candidates").update({ status }).in("id", ids);
+    mutationFn: async ({ ids, status, hold_reason }: { ids: string[]; status: Stage; hold_reason?: string | null }) => {
+      const patch: Record<string, unknown> = { status };
+      if (status === "hold") {
+        patch.hold_reason = hold_reason ?? null;
+        patch.held_at = new Date().toISOString();
+      } else if (hold_reason === null) {
+        // explicit recall — clear hold fields
+        patch.hold_reason = null;
+        patch.held_at = null;
+      }
+      const { error } = await supabase.from("candidates").update(patch).in("id", ids);
       if (error) throw error;
     },
     onSuccess: (_d, vars) => {
@@ -188,6 +197,19 @@ function PipelinePage() {
   }
   function moveToTrainee(ids: string[]) {
     update.mutate({ ids, status: "trainee" });
+  }
+
+  function holdCandidates(ids: string[]) {
+    const reason = window.prompt(
+      `Move ${ids.length} candidate${ids.length === 1 ? "" : "s"} to Hold.\n\nWhy are they being held? (e.g. "Role full — strong fit, recall in Q4")`,
+      "",
+    );
+    if (reason === null) return; // cancelled
+    update.mutate({ ids, status: "hold", hold_reason: reason.trim() || null });
+  }
+
+  function recallFromHold(ids: string[]) {
+    update.mutate({ ids, status: "interview", hold_reason: null });
   }
 
   function reject(ids: string[]) {
