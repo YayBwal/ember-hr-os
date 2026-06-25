@@ -99,23 +99,3 @@ export const deleteTeam = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const assignMember = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { teamId: string; employeeId: string; makePrimary?: boolean }) => d)
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase.from("team_members").insert({ team_id: data.teamId, employee_id: data.employeeId });
-    if (error && !error.message.includes("duplicate")) throw new Error(error.message);
-    if (data.makePrimary !== false) {
-      await context.supabase.from("employees").update({ team_id: data.teamId }).eq("id", data.employeeId);
-    }
-    return { ok: true };
-  });
-
-export const removeMember = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { teamId: string; employeeId: string }) => d)
-  .handler(async ({ data, context }) => {
-    await context.supabase.from("team_members").delete().eq("team_id", data.teamId).eq("employee_id", data.employeeId);
-    await context.supabase.from("employees").update({ team_id: null }).eq("id", data.employeeId).eq("team_id", data.teamId);
-    return { ok: true };
-  });

@@ -16,7 +16,7 @@ import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-import { Loader2, Plus, Users, Trophy, UserPlus, Calendar } from "lucide-react";
+import { Loader2, Plus, Users, Trophy, UserPlus } from "lucide-react";
 import { formatMMKCompact, initials } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
 import { createTeam, deleteTeam, logAttendance, setProductivityQuality } from "@/lib/operations.functions";
@@ -45,8 +45,8 @@ type SortKey = "kpi" | "productivity" | "attendance" | "completed";
 
 function OperationsPage() {
   useRealtimeInvalidate(
-    ["employees", "tasks", "attendance", "employee_kpis", "teams", "team_members", "meetings", "meeting_summaries"],
-    ["employees", "teams", "team_members", "kpis", "task_counts", "meetings"],
+    ["employees", "tasks", "attendance", "employee_kpis", "teams", "team_members"],
+    ["employees", "teams", "team_members", "employee-kpis", "task_counts"],
   );
 
   return (
@@ -60,11 +60,9 @@ function OperationsPage() {
           <TabsList>
             <TabsTrigger value="leaderboard"><Trophy className="mr-2 h-4 w-4" />Leaderboard</TabsTrigger>
             <TabsTrigger value="teams"><Users className="mr-2 h-4 w-4" />Teams</TabsTrigger>
-            <TabsTrigger value="meetings"><Calendar className="mr-2 h-4 w-4" />Meetings</TabsTrigger>
           </TabsList>
           <TabsContent value="leaderboard" className="mt-4"><Leaderboard /></TabsContent>
           <TabsContent value="teams" className="mt-4"><TeamsBoard /></TabsContent>
-          <TabsContent value="meetings" className="mt-4"><MeetingsPanel /></TabsContent>
         </Tabs>
       </div>
     </AppShell>
@@ -86,7 +84,7 @@ function Leaderboard() {
     },
   });
   const { data: kpis } = useQuery({
-    queryKey: ["kpis"],
+    queryKey: ["employee-kpis"],
     queryFn: async () => {
       const { data, error } = await supabase.from("employee_kpis").select("employee_id, period_month, kpi, productivity, quality, attendance, task_completion");
       if (error) throw error;
@@ -278,12 +276,12 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
     onSuccess: () => {
       toast.success("Attendance logged");
       qc.invalidateQueries({ queryKey: ["employee_kpi_current", employeeId] });
-      qc.invalidateQueries({ queryKey: ["kpis"] });
+      qc.invalidateQueries({ queryKey: ["employee-kpis"] });
     },
   });
   const submitPQ = useMutation({
     mutationFn: () => setPQ({ data: { employeeId: employeeId!, productivity: prod, quality: qual } }),
-    onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["employee_kpi_current", employeeId] }); qc.invalidateQueries({ queryKey: ["kpis"] }); },
+    onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["employee_kpi_current", employeeId] }); qc.invalidateQueries({ queryKey: ["employee-kpis"] }); },
   });
 
   return (
@@ -340,7 +338,8 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
                 </div>
               </div>
               <div className="rounded-lg border border-border p-3">
-                <div className="text-xs font-mono uppercase text-muted-foreground">Monthly productivity & quality</div>
+                <div className="text-xs font-mono uppercase text-muted-foreground">HR Override · Productivity &amp; Quality</div>
+                <div className="mt-1 text-[11px] text-muted-foreground">Writes directly to monthly KPI and triggers payroll recompute. Team Leader ratings live in Team Leader Hub.</div>
                 <div className="mt-3 space-y-3">
                   <div>
                     <div className="flex justify-between text-xs"><span>Productivity</span><span className="font-mono">{prod}</span></div>
@@ -537,17 +536,3 @@ function Stat({ label, value }: { label: string; value: number }) {
   );
 }
 
-function MeetingsPanel() {
-  const { data: meetings } = useQuery({
-    queryKey: ["meetings"],
-    queryFn: async () => {
-      const { data } = await supabase.from("meetings").select("id,title,status,created_at").order("created_at", { ascending: false });
-      return data ?? [];
-    },
-  });
-  return (
-    <div className="rounded-xl border border-border bg-card p-8 text-center text-sm text-muted-foreground">
-      Meeting AI uploads (audio) coming in the next round — table seeded with {meetings?.length ?? 0} record(s).
-    </div>
-  );
-}

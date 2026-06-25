@@ -2,9 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type Msg = { role: "user" | "assistant" | "tool"; content: string; tool_call_id?: string; name?: string };
-type Action =
-  | { type: "navigate"; to: string }
-  | { type: "highlight_candidates"; ids: string[] };
+type Action = { type: "navigate"; to: string };
 
 const tools = [
   {
@@ -117,7 +115,6 @@ When the user asks to open/go to a page (dashboard, pipeline, operations, delive
             } else {
               const list = rows ?? [];
               actions.push({ type: "navigate", to: `/pipeline?q=${encodeURIComponent(q)}` });
-              if (list.length > 0) actions.push({ type: "highlight_candidates", ids: list.map((r: any) => r.id) });
               result = { ok: true, count: list.length, candidates: list };
             }
           }
