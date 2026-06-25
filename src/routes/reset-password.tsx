@@ -57,7 +57,7 @@ function ResetPasswordPage() {
     }
 
     toast.success("Password updated");
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/operations" });
   }
 
   return (
