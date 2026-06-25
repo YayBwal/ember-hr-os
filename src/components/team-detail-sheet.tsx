@@ -127,7 +127,24 @@ function LeaderRow({ team, allEmployees, isAdmin }: { team: Team; allEmployees: 
   const qc = useQueryClient();
   const appoint = useServerFn(appointTeamLeader);
   const unappoint = useServerFn(removeTeamLeader);
+  const listTL = useServerFn(listTeamLeaders);
   const lead = allEmployees.find((e) => e.id === team.team_lead_employee_id);
+
+  const { data: tlAccounts } = useQuery({
+    queryKey: ["tl_accounts"],
+    enabled: isAdmin,
+    queryFn: () => listTL(),
+  });
+  const tlEmailSet = new Set(
+    (tlAccounts ?? [])
+      .map((u) => (u.email ?? "").toLowerCase().trim())
+      .filter((s) => s.length > 0),
+  );
+  // Only employees that already have a Team Leader login account are eligible.
+  const eligibleLeaders = allEmployees.filter(
+    (e) => e.email && tlEmailSet.has(e.email.toLowerCase().trim()),
+  );
+
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["teams"] });
     qc.invalidateQueries({ queryKey: ["employees"] });
@@ -149,13 +166,20 @@ function LeaderRow({ team, allEmployees, isAdmin }: { team: Team; allEmployees: 
         <div className="text-xs text-muted-foreground">No leader assigned.</div>
       )}
       {isAdmin && (
-        <div className="mt-2">
+        <div className="mt-2 space-y-1">
           <Select onValueChange={(v) => appoint({ data: { teamId: team.id, employeeId: v } }).then(() => { toast.success("Appointed"); invalidate(); }).catch((e: Error) => toast.error(e.message))}>
             <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={lead ? "Reassign team leader…" : "Appoint team leader…"} /></SelectTrigger>
             <SelectContent>
-              {allEmployees.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+              {eligibleLeaders.length === 0 ? (
+                <div className="px-2 py-1.5 text-[11px] text-muted-foreground">
+                  No Team Leader accounts yet. Create one in Settings → Team Leaders.
+                </div>
+              ) : (
+                eligibleLeaders.map((e) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)
+              )}
             </SelectContent>
           </Select>
+          <p className="text-[10px] text-muted-foreground">Only employees with a Team Leader login account are listed.</p>
         </div>
       )}
     </div>
