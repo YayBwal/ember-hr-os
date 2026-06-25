@@ -29,6 +29,7 @@ interface ParsedCv {
   ai_match_score: number;
   summary: string;
   next_action: string;
+  cv_storage_path: string | null;
 }
 
 function isParseInput(v: unknown): v is ParseInput {
