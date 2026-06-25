@@ -481,3 +481,22 @@ function PeerAggregates({ team, allEmployees, memberIds, period }: { team: Team;
     </div>
   );
 }
+
+function PeerPendingBadge({ teamId }: { teamId: string }) {
+  const period = thisMonth().start;
+  const { data: pending } = useQuery({
+    queryKey: ["peer_pending_badge", teamId, period],
+    queryFn: async () => {
+      const [{ data: tm }, { data: pr }] = await Promise.all([
+        supabase.from("team_members").select("employee_id").eq("team_id", teamId),
+        supabase.from("peer_reviews").select("reviewer_employee_id").eq("team_id", teamId).eq("period_month", period),
+      ]);
+      const submitted = new Set((pr ?? []).map((r) => r.reviewer_employee_id));
+      let p = 0;
+      for (const m of tm ?? []) if (!submitted.has(m.employee_id)) p++;
+      return p;
+    },
+  });
+  if (!pending) return null;
+  return <Badge variant="default" className="h-4 min-w-4 px-1 text-[10px] leading-none">{pending}</Badge>;
+}
