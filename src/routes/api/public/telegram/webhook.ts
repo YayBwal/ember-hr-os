@@ -118,21 +118,44 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
     .eq("telegram_chat_id", chatId)
     .maybeSingle();
 
-  // /start or unlinked
-  if (text === "/start" || !emp) {
-    if (!emp) {
-      state = { step: "await_code" };
-      await setSession(chatId, state);
+  // /start always greets; unlinked users go through code lookup below
+  if (text === "/start") {
+    if (emp) {
+      state = { step: "menu", employee_id: emp.id as string, department: emp.department as string };
+      await setSession(chatId, state, emp.org_id as string);
+      await tgSendMessage(chatId, `Hi <b>${emp.full_name}</b> 👋`, removeKeyboard());
+      return startMenu(chatId);
+    }
+    state = { step: "await_code" };
+    await setSession(chatId, state);
+    await tgSendMessage(
+      chatId,
+      "👋 Welcome to the HR Feedback Bot.\n\nPlease send your <b>Employee ID</b> to link your account.",
+      removeKeyboard(),
+    );
+    return;
+  }
+
+  // Unlinked: try to treat any incoming text as an Employee ID
+  if (!emp) {
+    const code = text;
+    const { data: match } = await sb()
+      .from("employees")
+      .select("id, full_name, department, org_id")
+      .eq("employee_code", code)
+      .maybeSingle();
+    if (!match) {
       await tgSendMessage(
         chatId,
-        "👋 Welcome to the HR Feedback Bot.\n\nPlease send your <b>Employee ID</b> to link your account.",
+        "❌ Employee ID not found. Please check with HR and send your <b>Employee ID</b> (e.g. EMP-1234).",
         removeKeyboard(),
       );
       return;
     }
-    state = { step: "menu", employee_id: emp.id as string, department: emp.department as string };
-    await setSession(chatId, state, emp.org_id as string);
-    await tgSendMessage(chatId, `Hi <b>${emp.full_name}</b> 👋`, removeKeyboard());
+    await sb().from("employees").update({ telegram_chat_id: chatId }).eq("id", match.id as string);
+    state = { step: "menu", employee_id: match.id as string, department: match.department as string };
+    await setSession(chatId, state, match.org_id as string);
+    await tgSendMessage(chatId, `✅ Linked! Hi <b>${match.full_name}</b>.`);
     return startMenu(chatId);
   }
 
