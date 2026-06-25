@@ -21,8 +21,8 @@ export type LiveStatus = "idle" | "connecting" | "listening" | "thinking" | "spe
 
 export type LiveEvent =
   | { type: "status"; status: LiveStatus }
-  | { type: "user_text"; text: string }
-  | { type: "ai_text"; text: string }
+  | { type: "user_text"; text: string; partial: boolean }
+  | { type: "ai_text"; text: string; partial: boolean }
   | { type: "action"; action: { type: "navigate"; to: string } }
   | { type: "error"; message: string };
 
