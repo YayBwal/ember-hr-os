@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Plus, Minus, RefreshCw, TrendingUp, History } from "lucide-react";
+import { Loader2, Plus, Minus, RefreshCw, TrendingUp, History, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatMMK, formatMMKCompact } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
 import { addBonus, addDeduction, runPayroll, promoteEmployee, type EmployeeLevel } from "@/lib/financial.functions";
