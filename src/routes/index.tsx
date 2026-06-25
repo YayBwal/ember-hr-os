@@ -82,12 +82,12 @@ function Nav() {
   );
 }
 
-function LogoMark() {
+function LogoMark({ className = "h-10 w-10" }: { className?: string }) {
   return (
     <img
       src={logoAsset.url}
       alt="Mandai"
-      className="h-7 w-7 rounded-md object-contain"
+      className={`${className} object-contain`}
     />
   );
 }

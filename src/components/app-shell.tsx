@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
+import logoAsset from "@/assets/mandai-logo.svg.asset.json";
 const AssistantDock = lazy(() =>
   import("@/components/assistant-dock").then((m) => ({ default: m.AssistantDock })),
 );
@@ -191,9 +192,7 @@ function Sidebar({
     >
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-3">
         <Link to="/operations" className="flex items-center gap-2 px-1">
-          <div className="relative flex h-7 w-7 items-center justify-center rounded-md bg-primary">
-            <div className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
-          </div>
+          <img src={logoAsset.url} alt="Mandai" className="h-9 w-9 object-contain" />
           {!collapsed && <span className="font-display text-base font-semibold tracking-tight">Mandai</span>}
         </Link>
         <Button variant="ghost" size="icon" onClick={onToggle} className="h-7 w-7">
