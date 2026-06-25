@@ -89,7 +89,7 @@ function Leaderboard() {
   const { data: kpis } = useQuery({
     queryKey: ["employee-kpis"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("employee_kpis").select("employee_id, period_month, kpi, productivity, quality, attendance, task_completion");
+      const { data, error } = await supabase.from("employee_kpis").select("employee_id, period_month, kpi, attendance, task_completion");
       if (error) throw error;
       return (data ?? []) as Kpi[];
     },
