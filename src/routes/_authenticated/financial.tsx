@@ -185,7 +185,7 @@ function PayrollTab() {
         </Button>
       </div>
 
-      {!run && (
+      {!run && !runLoading && (
         <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
           Payroll has not been computed for this period. Click <span className="font-medium text-foreground">Recompute Payroll</span> to generate results.
         </div>
