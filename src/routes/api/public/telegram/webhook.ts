@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
-import { createHash, timingSafeEqual } from "crypto";
-import { tgSendMessage, ratingKeyboard, mainMenuKeyboard, removeKeyboard } from "@/lib/telegram.server";
+import { createHash, timingSafeEqual, randomUUID } from "crypto";
+import { tgCall, tgSendMessage, ratingKeyboard, mainMenuKeyboard, removeKeyboard } from "@/lib/telegram.server";
+import { ROLE_PRESETS } from "@/lib/roles";
 
 function deriveSecret(apiKey: string) {
   return createHash("sha256").update(`telegram-webhook:${apiKey}`).digest("base64url");
@@ -20,13 +21,16 @@ type SessionState = {
     | "survey_answer"
     | "report_subject"
     | "report_category"
-    | "report_description";
+    | "report_description"
+    | "apply_pick_role"
+    | "apply_await_cv";
   employee_id?: string;
   department?: string;
   survey_id?: string;
   question_ids?: string[];
   q_index?: number;
   report?: { subject?: string; category?: string };
+  apply_role?: string;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -47,15 +51,31 @@ async function setSession(chatId: number, state: SessionState, org_id?: string |
     .from("telegram_sessions")
     .upsert({ chat_id: chatId, state: state as never, org_id: org_id ?? null, updated_at: new Date().toISOString() });
 }
-async function clearSession(chatId: number) {
-  await sb().from("telegram_sessions").delete().eq("chat_id", chatId);
-}
 
 async function startMenu(chatId: number) {
   await tgSendMessage(
     chatId,
     "What would you like to do?\n\n📋 Take Survey — answer active surveys\n⚠️ Report Incident — anonymously report bullying or misconduct",
     mainMenuKeyboard(),
+  );
+}
+
+function rolesKeyboard() {
+  const rows: { text: string }[][] = [];
+  for (let i = 0; i < ROLE_PRESETS.length; i += 2) {
+    rows.push(ROLE_PRESETS.slice(i, i + 2).map((r) => ({ text: r })));
+  }
+  rows.push([{ text: "❌ Cancel" }]);
+  return { reply_markup: { keyboard: rows, resize_keyboard: true, one_time_keyboard: true } };
+}
+
+async function startApply(chatId: number) {
+  const state: SessionState = { step: "apply_pick_role" };
+  await setSession(chatId, state);
+  await tgSendMessage(
+    chatId,
+    "📄 <b>Apply for a position</b>\n\nPick the position you'd like to apply for:",
+    rolesKeyboard(),
   );
 }
 
@@ -71,6 +91,7 @@ async function startSurvey(chatId: number, state: SessionState) {
     await setSession(chatId, state);
     return;
   }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const keyboard = surveys.map((s: any) => [{ text: s.title as string }]);
   keyboard.push([{ text: "❌ Cancel" }]);
   state.step = "survey_pick";
@@ -104,12 +125,145 @@ async function askNextQuestion(chatId: number, state: SessionState) {
   await tgSendMessage(chatId, `Q${idx + 1}. ${q.question_text}`, extra);
 }
 
-async function handleMessage(update: { update_id: number; message?: { chat: { id: number }; from?: { id?: number }; text?: string } }) {
-  const msg = update.message;
+// Download a Telegram document via the connector gateway and return bytes + filename.
+async function downloadTelegramFile(fileId: string): Promise<{ bytes: Buffer; filename: string; mime: string }> {
+  const fileResp = await tgCall("getFile", { file_id: fileId });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const filePath = (fileResp as any)?.result?.file_path as string | undefined;
+  if (!filePath) throw new Error("Telegram getFile returned no file_path");
+
+  const lov = process.env.LOVABLE_API_KEY!;
+  const tg = process.env.TELEGRAM_API_KEY!;
+  const dl = await fetch(`https://connector-gateway.lovable.dev/telegram/file/${filePath}`, {
+    headers: { Authorization: `Bearer ${lov}`, "X-Connection-Api-Key": tg },
+  });
+  if (!dl.ok) throw new Error(`Telegram file download failed [${dl.status}]`);
+  const ab = await dl.arrayBuffer();
+  const filename = filePath.split("/").pop() ?? "cv.pdf";
+  const ext = filename.toLowerCase().split(".").pop() ?? "";
+  const mime = ext === "pdf" ? "application/pdf" : `application/octet-stream`;
+  return { bytes: Buffer.from(ab), filename, mime };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleCvUpload(chatId: number, state: SessionState, doc: any) {
+  const role = state.apply_role;
+  if (!role) {
+    await tgSendMessage(chatId, "Please start with /apply and pick a position first.", removeKeyboard());
+    return;
+  }
+  const fileName = String(doc?.file_name ?? "cv.pdf");
+  const mime = String(doc?.mime_type ?? "");
+  const size = Number(doc?.file_size ?? 0);
+  const isPdf = mime === "application/pdf" || fileName.toLowerCase().endsWith(".pdf");
+
+  if (!isPdf) {
+    await tgSendMessage(
+      chatId,
+      "❌ Please send your CV as a <b>PDF</b> file. (If you have a Word doc, export it as PDF first.)",
+    );
+    return;
+  }
+  if (size > 15 * 1024 * 1024) {
+    await tgSendMessage(chatId, "❌ File is too large. Please send a CV under 15 MB.");
+    return;
+  }
+
+  await tgSendMessage(chatId, "⏳ Got it — reading your CV and scoring it…", removeKeyboard());
+
+  try {
+    const { bytes } = await downloadTelegramFile(doc.file_id as string);
+    const storagePath = `${chatId}/${randomUUID()}.pdf`;
+
+    // Upload to private candidate-cvs bucket
+    const { error: upErr } = await sb().storage.from("candidate-cvs").upload(storagePath, bytes, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+    if (upErr) throw new Error(upErr.message);
+
+    // Pick an org to attach to (single-org system uses Mandai; first one wins).
+    const { data: org } = await sb().from("organizations").select("id").limit(1).maybeSingle();
+    const orgId = (org?.id as string | undefined) ?? null;
+    if (!orgId) throw new Error("No organization configured");
+
+    // Insert candidate row in screening
+    const { data: created, error: insErr } = await sb()
+      .from("candidates")
+      .insert({
+        org_id: orgId,
+        full_name: "(parsing…)",
+        email: null,
+        role_applied: role,
+        status: "screening",
+        ai_match_score: 0,
+        skills: [],
+        next_action: "AI scoring…",
+        notes: null,
+        source: "telegram",
+        telegram_chat_id: chatId,
+        cv_storage_path: storagePath,
+      })
+      .select("id")
+      .single();
+    if (insErr || !created) throw new Error(insErr?.message ?? "Insert failed");
+
+    // AI scoring (best-effort; row already exists if this fails)
+    try {
+      const { scoreTelegramCv } = await import("@/lib/cv-intake.server");
+      const parsed = await scoreTelegramCv({
+        candidate_id: created.id as string,
+        storage_path: storagePath,
+        role,
+      });
+      await tgSendMessage(
+        chatId,
+        `✅ <b>CV received for ${escapeHtml(role)}</b>\n\nMatch score: <b>${parsed.ai_match_score}%</b>\nWe'll be in touch — thanks for applying!`,
+        mainMenuKeyboard(),
+      );
+    } catch (e) {
+      console.error("cv scoring failed", e);
+      await tgSendMessage(
+        chatId,
+        `✅ <b>CV received for ${escapeHtml(role)}</b>\n\nOur team will review it shortly. Thanks for applying!`,
+        mainMenuKeyboard(),
+      );
+    }
+
+    await setSession(chatId, { step: "menu", apply_role: undefined });
+  } catch (e) {
+    console.error("telegram CV upload failed", e);
+    await tgSendMessage(
+      chatId,
+      "❌ Sorry — we couldn't process that file. Please try again with a PDF under 15 MB.",
+    );
+  }
+}
+
+function escapeHtml(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function handleMessage(update: any) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const msg = (update.message ?? update.edited_message) as any;
   if (!msg?.chat?.id) return;
-  const chatId = msg.chat.id;
-  const text = (msg.text ?? "").trim();
+  const chatId = msg.chat.id as number;
+  const text = (msg.text ?? "").toString().trim();
   let state = await getSession(chatId);
+
+  // Document upload (CV)
+  if (msg.document && state.step === "apply_await_cv") {
+    return handleCvUpload(chatId, state, msg.document);
+  }
+  if (msg.document && state.step !== "apply_await_cv") {
+    await tgSendMessage(
+      chatId,
+      "📄 To submit a CV, send /apply first and pick a position.",
+    );
+    return;
+  }
 
   // Resolve linked employee
   const { data: emp } = await sb()
@@ -118,29 +272,70 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
     .eq("telegram_chat_id", chatId)
     .maybeSingle();
 
-  // /help — explain how to link and what to do on errors
+  // /apply — open to everyone, no employee link required
+  if (text === "/apply") {
+    return startApply(chatId);
+  }
+
+  // /help
   if (text === "/help") {
     await tgSendMessage(
       chatId,
       [
-        "ℹ️ <b>HR Feedback Bot — Help</b>",
+        "ℹ️ <b>HR Bot — Help</b>",
         "",
-        "<b>How to link your account</b>",
+        "<b>Applying for a job</b>",
+        "1. Send /apply",
+        "2. Pick the position",
+        "3. Upload your CV as a <b>PDF</b> (max 15 MB)",
+        "",
+        "<b>Employees: link your account</b>",
         "1. Send /start",
-        "2. Reply with your <b>Employee ID</b> in the format <code>EMP-1234</code>",
-        "3. Once linked, you can take surveys or report incidents anonymously",
-        "",
-        "<b>If your Employee ID is invalid</b>",
-        "• Double-check the exact code (e.g. <code>EMP-9915</code>, dash included, no spaces)",
-        "• Ask HR to confirm or assign your Employee ID",
-        "• Then send the corrected code here",
+        "2. Reply with your Employee ID (e.g. <code>EMP-1234</code>)",
+        "3. You can then take surveys or report incidents anonymously",
         "",
         "<b>Commands</b>",
+        "/apply — apply for a job",
         "/start — begin or restart linking",
         "/help — show this message",
         "/cancel — cancel the current action",
       ].join("\n"),
       removeKeyboard(),
+    );
+    return;
+  }
+
+  // Apply: pick a role
+  if (state.step === "apply_pick_role") {
+    if (text === "❌ Cancel" || text === "/cancel") {
+      await setSession(chatId, { step: undefined });
+      await tgSendMessage(chatId, "Cancelled.", removeKeyboard());
+      return;
+    }
+    const picked = ROLE_PRESETS.find((r) => r === text);
+    if (!picked) {
+      await tgSendMessage(chatId, "Please tap one of the position buttons.", rolesKeyboard());
+      return;
+    }
+    state = { step: "apply_await_cv", apply_role: picked };
+    await setSession(chatId, state);
+    await tgSendMessage(
+      chatId,
+      `📎 Great. Now upload your CV (<b>PDF</b>, max 15 MB) for <b>${escapeHtml(picked)}</b>.`,
+      removeKeyboard(),
+    );
+    return;
+  }
+
+  if (state.step === "apply_await_cv") {
+    if (text === "❌ Cancel" || text === "/cancel") {
+      await setSession(chatId, { step: undefined, apply_role: undefined });
+      await tgSendMessage(chatId, "Application cancelled.", removeKeyboard());
+      return;
+    }
+    await tgSendMessage(
+      chatId,
+      "Please upload your CV as a <b>PDF document</b>. Use the 📎 attach button in Telegram.",
     );
     return;
   }
@@ -157,7 +352,7 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
     await setSession(chatId, state);
     await tgSendMessage(
       chatId,
-      "👋 Welcome to the HR Feedback Bot.\n\nPlease send your <b>Employee ID</b> to link your account.",
+      "👋 Welcome.\n\n• Send /apply to apply for an open position.\n• If you're an employee, send your <b>Employee ID</b> to link your account (e.g. EMP-1234).",
       removeKeyboard(),
     );
     return;
@@ -174,7 +369,7 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
     if (!match) {
       await tgSendMessage(
         chatId,
-        "❌ Employee ID not found. Please check with HR and send your <b>Employee ID</b> (e.g. EMP-1234).",
+        "Not recognised. Send /apply to apply for a job, or send your <b>Employee ID</b> (e.g. EMP-1234) to link as an employee.",
         removeKeyboard(),
       );
       return;
@@ -190,23 +385,6 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
   if (text === "❌ Cancel" || text === "/cancel") {
     state = { step: "menu", employee_id: emp.id as string, department: emp.department as string };
     await setSession(chatId, state, emp.org_id as string);
-    return startMenu(chatId);
-  }
-
-  // Await code (shouldn't reach here since emp exists, but for safety)
-  if (state.step === "await_code") {
-    const { data: match } = await sb()
-      .from("employees")
-      .select("id, full_name, department, org_id")
-      .eq("employee_code", text)
-      .maybeSingle();
-    if (!match) {
-      return tgSendMessage(chatId, "❌ Employee ID not found. Please check with HR and try again.");
-    }
-    await sb().from("employees").update({ telegram_chat_id: chatId }).eq("id", match.id as string);
-    state = { step: "menu", employee_id: match.id as string, department: match.department as string };
-    await setSession(chatId, state, match.org_id as string);
-    await tgSendMessage(chatId, `✅ Linked! Hi <b>${match.full_name}</b>.`);
     return startMenu(chatId);
   }
 
@@ -226,6 +404,7 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
   // Survey pick
   if (state.step === "survey_pick") {
     const { data: surveys } = await sb().from("surveys").select("id, title").eq("status", "active");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const picked = surveys?.find((s: any) => (s.title as string) === text);
     if (!picked) return tgSendMessage(chatId, "Please tap one of the survey buttons.");
     const { data: qs } = await sb()
@@ -235,6 +414,7 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
       .order("sort_order");
     state.step = "survey_answer";
     state.survey_id = picked.id as string;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     state.question_ids = (qs ?? []).map((q: any) => q.id as string);
     state.q_index = 0;
     await setSession(chatId, state);
@@ -291,7 +471,6 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
   }
   if (state.step === "report_description") {
     const subj = state.report?.subject ?? null;
-    // Try resolve to employee by code or name
     let subject_employee_code: string | null = null;
     let subject_name: string | null = subj;
     if (subj) {
@@ -319,7 +498,6 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
     return startMenu(chatId);
   }
 
-  // Default → show menu
   return startMenu(chatId);
 }
 
