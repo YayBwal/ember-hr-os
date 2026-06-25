@@ -196,6 +196,9 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
               }} onSubmitRating={async (id, rating, note) => {
                 await rate({ data: { reportId: id, employeeId: m.id, rating, note } });
                 qc.invalidateQueries({ queryKey: ["existing_ratings", id] });
+                qc.invalidateQueries({ queryKey: ["employees"] });
+                qc.invalidateQueries({ queryKey: ["employee-kpis"] });
+                qc.invalidateQueries({ queryKey: ["employee_kpis"] });
               }} />;
             })}
             {(members?.length ?? 0) === 0 && <div className="text-xs text-muted-foreground">No team members.</div>}
