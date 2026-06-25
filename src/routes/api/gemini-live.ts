@@ -22,6 +22,7 @@ export const Route = createFileRoute("/api/gemini-live")({
         if (!isUpgrade) {
           const hasKey = !!process.env.GEMINI_API_KEY;
           const hasSb = !!process.env.SUPABASE_URL && !!process.env.SUPABASE_PUBLISHABLE_KEY;
+          const hasPair = !!(globalThis as unknown as { WebSocketPair?: unknown }).WebSocketPair;
           // WebSocketPair is only reliably available during a real upgrade
           // request on Cloudflare Workers, so we don't gate on it in the probe.
           return new Response(
