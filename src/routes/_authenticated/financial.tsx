@@ -114,7 +114,7 @@ function PayrollTab() {
     queryKey: ["payroll_lines", period, run?.id],
     enabled: !!run?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("payroll_lines").select("*").eq("run_id", run!.id);
+      const { data } = await supabase.from("payroll_lines").select("id, employee_id, base_mmk, performance_bonus_mmk, bonus_mmk, deduction_mmk, overtime_mmk, total_mmk, kpi_snapshot, tasks_completed").eq("run_id", run!.id);
       return (data ?? []) as Line[];
     },
   });
