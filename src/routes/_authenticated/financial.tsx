@@ -111,7 +111,7 @@ function PayrollTab() {
   const { data: run } = useQuery({
     queryKey: ["payroll_runs", period],
     queryFn: async () => {
-      const { data } = await supabase.from("payroll_runs").select("id,period_month,total_mmk").eq("period_month", period).maybeSingle();
+      const { data } = await supabase.from("payroll_runs").select("id,period_month,total_mmk,last_recomputed_at").eq("period_month", period).maybeSingle();
       return data;
     },
   });
@@ -123,6 +123,14 @@ function PayrollTab() {
       return (data ?? []) as Line[];
     },
   });
+  const { data: overrides } = useQuery({
+    queryKey: ["kpi_overrides", period],
+    queryFn: async () => {
+      const { data } = await supabase.from("kpi_overrides").select("employee_id,bonus_override_mmk,note").eq("period_month", period);
+      return (data ?? []) as Array<{ employee_id: string; bonus_override_mmk: number | null; note: string | null }>;
+    },
+  });
+  const overrideFor = (id: string) => overrides?.find((o) => o.employee_id === id);
   const lineFor = (id: string) => lines?.find((l) => l.employee_id === id);
 
   const runMut = useMutation({
