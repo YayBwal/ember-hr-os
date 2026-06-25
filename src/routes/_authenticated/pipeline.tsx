@@ -76,6 +76,7 @@ function PipelinePage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [approving, setApproving] = useState<Candidate | null>(null);
+  const [holding, setHolding] = useState<Candidate[] | null>(null);
   const [analyzeId, setAnalyzeId] = useState<Candidate | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const { q, stage: stageParam } = Route.useSearch();
