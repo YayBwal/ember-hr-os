@@ -99,6 +99,7 @@ export class GeminiLiveSession {
   private closed = false;
   private listeners = new Set<(e: LiveEvent) => void>();
   private currentAiText = "";
+  private currentUserText = "";
 
   on(cb: (e: LiveEvent) => void) {
     this.listeners.add(cb);
