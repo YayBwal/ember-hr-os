@@ -261,6 +261,7 @@ function PayrollTab() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
 
