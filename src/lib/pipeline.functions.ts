@@ -62,6 +62,23 @@ export const parseCv = createServerFn({ method: "POST" })
     if (cleanBase64.length < 100) {
       throw new Error("Uploaded file is empty or unreadable");
     }
+
+    // Upload original PDF to storage so HR can view it later (best-effort).
+    let cv_storage_path: string | null = null;
+    if (data.mime === "application/pdf") {
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { randomUUID } = await import("crypto");
+        const path = `hr-upload/${randomUUID()}.pdf`;
+        const bytes = Buffer.from(cleanBase64, "base64");
+        const { error } = await supabaseAdmin.storage
+          .from("candidate-cvs")
+          .upload(path, bytes, { contentType: "application/pdf", upsert: false });
+        if (!error) cv_storage_path = path;
+      } catch (e) {
+        console.error("cv storage upload failed", e);
+      }
+    }
     // ~20 MB base64 cap — Gemini rejects very large inline files.
     if (cleanBase64.length > 20 * 1024 * 1024) {
       throw new Error("File too large — please upload a CV under 15 MB");
