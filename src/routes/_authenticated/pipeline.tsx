@@ -60,6 +60,8 @@ type Candidate = {
   trainee_salary_mmk: number | null;
   hold_reason: string | null;
   held_at: string | null;
+  source: string | null;
+  cv_storage_path: string | null;
 };
 
 const PAGE_SIZE = 25;
