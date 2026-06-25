@@ -4,8 +4,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 
+// NOTE: Cloudflare Workers' fetch-upgrade requires an https:// URL even though
+// the underlying protocol is WebSocket. Using wss:// here throws
+// "Fetch API cannot load: wss://..." at runtime.
 const GEMINI_WS =
-  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
+  "https://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent";
 
 export const Route = createFileRoute("/api/gemini-live")({
   server: {
