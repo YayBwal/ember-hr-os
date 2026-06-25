@@ -29,10 +29,11 @@ type SessionState = {
   report?: { subject?: string; category?: string };
 };
 
-let _sb: ReturnType<typeof createClient<any, "public", any>> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _sb: any = null;
 function sb() {
   if (!_sb) {
-    _sb = createClient<any, "public", any>(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    _sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   }
   return _sb;
 }
