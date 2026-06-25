@@ -366,7 +366,17 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
                 </div>
               </div>
               <div className="rounded-lg border border-border p-3">
-                <div className="text-xs font-mono uppercase text-muted-foreground">HR Override · Productivity &amp; Quality</div>
+                <div className="flex items-center gap-1.5 text-xs font-mono uppercase text-muted-foreground">
+                  <span>HR Override · Productivity &amp; Quality</span>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        HR-only manual adjustment that writes directly to the employee's monthly KPI and recomputes payroll. Use sparingly — Team Leader Ratings (in Team Leader Hub) are the primary performance signal.
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
                 <div className="mt-1 text-[11px] text-muted-foreground">Writes directly to monthly KPI and triggers payroll recompute. Team Leader ratings live in Team Leader Hub.</div>
                 <div className="mt-3 space-y-3">
                   <div>
