@@ -206,7 +206,7 @@ function PayrollTab() {
                 </tr>
               );
             })}
-            {(employees?.length ?? 0) === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees.</td></tr>}
+            {(employees?.length ?? 0) === 0 && <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -745,12 +745,12 @@ function KpiTab() {
               </thead>
               <tbody>
                 {isLoading && (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">
                     <Loader2 className="mx-auto h-4 w-4 animate-spin" />
                   </td></tr>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No employees match the filters.</td></tr>
+                  <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-muted-foreground">No employees match the filters.</td></tr>
                 )}
                 {filtered.map((r) => {
                   const isOpen = expanded === r.employee_id;
@@ -793,7 +793,7 @@ function KpiTab() {
                       </tr>
                       {isOpen && (
                         <tr className="border-t border-border bg-muted/20">
-                          <td colSpan={9} className="px-4 py-3 text-xs text-muted-foreground">
+                          <td colSpan={10} className="px-4 py-3 text-xs text-muted-foreground">
                             <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                               <div><span className="text-foreground font-medium">{r.days_present}</span> days present</div>
                               <div><span className="text-foreground font-medium">{r.days_late}</span> days late</div>
