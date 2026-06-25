@@ -109,7 +109,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     if (role === "Team Leader" && pathname !== "/team-leader" && !pathname.startsWith("/auth") && !pathname.startsWith("/settings")) {
       navigate({ to: "/team-leader" });
     } else if (role === "HR" && pathname === "/team-leader") {
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/operations" });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role, pathname]);
@@ -118,7 +118,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     setRole(r);
     try { window.localStorage.setItem("mandai-role", r); } catch {}
     if (r === "Team Leader") navigate({ to: "/team-leader" });
-    else navigate({ to: "/dashboard" });
+    else navigate({ to: "/operations" });
   }
 
   async function signOut() {
@@ -189,7 +189,7 @@ function Sidebar({
       className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-border bg-sidebar text-sidebar-foreground md:flex ${collapsed ? "w-[64px]" : "w-[232px]"}`}
     >
       <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-3">
-        <Link to="/dashboard" className="flex items-center gap-2 px-1">
+        <Link to="/operations" className="flex items-center gap-2 px-1">
           <div className="relative flex h-7 w-7 items-center justify-center rounded-md bg-primary">
             <div className="h-2.5 w-2.5 rounded-sm bg-primary-foreground" />
           </div>
