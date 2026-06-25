@@ -157,12 +157,12 @@ function Leaderboard() {
           <SelectContent>
             <SelectItem value="kpi">Highest KPI</SelectItem>
             <SelectItem value="attendance">Attendance</SelectItem>
-            <SelectItem value="completed">Completed Tasks</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
+      {/* Desktop table */}
+      <div className="mt-4 hidden overflow-x-auto rounded-xl border border-border bg-card md:block">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
             <tr>
@@ -172,10 +172,8 @@ function Leaderboard() {
               <th className="px-4 py-3 text-left">Team</th>
               <th className="px-4 py-3 text-right">KPI</th>
               <th className="px-4 py-3 text-right">Task %</th>
-              <th className="px-4 py-3 text-right">Att.</th>
-              <th className="px-4 py-3 text-right">Done</th>
-              <th className="px-4 py-3 text-right">Active</th>
-              <th className="px-4 py-3 text-left">Grade</th>
+              <th className="px-4 py-3 text-right">Att. %</th>
+              <th className="px-4 py-3 text-left">Telegram</th>
             </tr>
           </thead>
           <tbody>
@@ -185,12 +183,12 @@ function Leaderboard() {
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8"><AvatarFallback>{initials(r.emp.full_name)}</AvatarFallback></Avatar>
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="font-medium">{r.emp.full_name}</span>
                         <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{r.emp.level}</span>
                       </div>
-                      <div className="text-xs text-muted-foreground">{r.emp.position}</div>
+                      <div className="truncate text-xs text-muted-foreground">{r.emp.position}</div>
                     </div>
                   </div>
                 </td>
@@ -199,23 +197,69 @@ function Leaderboard() {
                 <td className="px-4 py-3 text-right font-medium">{r.kpi.toFixed(1)}</td>
                 <td className="px-4 py-3 text-right">{r.taskCompletion.toFixed(0)}%</td>
                 <td className="px-4 py-3 text-right">{r.attendance.toFixed(0)}%</td>
-                <td className="px-4 py-3 text-right">{r.completed}</td>
-                <td className="px-4 py-3 text-right">{r.active}</td>
-                <td className="px-4 py-3 text-xs text-muted-foreground">{r.emp.salary_grade ?? "—"}</td>
+                <td className="px-4 py-3">
+                  {r.emp.telegram_chat_id
+                    ? <Badge className="bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15">Linked</Badge>
+                    : <Badge variant="outline" className="text-muted-foreground">Not Linked</Badge>}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees yet. Approve a candidate in Pipeline.</td></tr>
-
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees yet. Approve a candidate in Pipeline.</td></tr>
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="mt-4 space-y-3 md:hidden">
+        {rows.map((r, i) => (
+          <button
+            key={r.emp.id}
+            onClick={() => setSelected(r.emp.id)}
+            className="block w-full rounded-xl border border-border bg-card p-4 text-left active:scale-[0.99]"
+          >
+            <div className="flex items-start gap-3">
+              <Avatar className="h-10 w-10 shrink-0"><AvatarFallback>{initials(r.emp.full_name)}</AvatarFallback></Avatar>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-xs text-muted-foreground">#{i + 1}</span>
+                  <span className="truncate font-medium">{r.emp.full_name}</span>
+                </div>
+                <div className="truncate text-xs text-muted-foreground">{r.emp.position}</div>
+              </div>
+              {r.emp.telegram_chat_id
+                ? <Badge className="shrink-0 bg-emerald-500/15 text-emerald-600 hover:bg-emerald-500/15">Linked</Badge>
+                : <Badge variant="outline" className="shrink-0 text-muted-foreground">Not Linked</Badge>}
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-muted/40 px-2 py-2">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">KPI</div>
+                <div className="text-base font-semibold">{r.kpi.toFixed(1)}</div>
+              </div>
+              <div className="rounded-lg bg-muted/40 px-2 py-2">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Task</div>
+                <div className="text-base font-semibold">{r.taskCompletion.toFixed(0)}%</div>
+              </div>
+              <div className="rounded-lg bg-muted/40 px-2 py-2">
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground">Att.</div>
+                <div className="text-base font-semibold">{r.attendance.toFixed(0)}%</div>
+              </div>
+            </div>
+          </button>
+        ))}
+        {rows.length === 0 && (
+          <div className="rounded-xl border border-border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
+            No employees yet. Approve a candidate in Pipeline.
+          </div>
+        )}
       </div>
 
       <EmployeeProfileSheet employeeId={selected} onClose={() => setSelected(null)} />
     </div>
   );
 }
+
 
 function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | null; onClose: () => void }) {
   const open = !!employeeId;
