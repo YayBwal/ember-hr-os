@@ -250,39 +250,63 @@ function PromotionsTab() {
   const lastPromotionFor = (empId: string) => promotions?.find((p) => p.employee_id === empId);
   const historyFor = (empId: string) => (promotions ?? []).filter((p) => p.employee_id === empId);
 
-  // KPI strip
+  // Tracking stats
   const stats = useMemo(() => {
     const now = new Date();
     const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
     const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const realPromos = (promotions ?? []).filter((p) => p.from_level !== null);
-    const promotedThisQuarter = realPromos.filter((p) => new Date(p.effective_date) >= qStart).length;
-    const deltaThisMonth = realPromos
-      .filter((p) => new Date(p.effective_date) >= mStart)
-      .reduce((s, p) => s + (p.to_base_mmk - (p.from_base_mmk ?? 0)), 0);
-    const tenures = (employees ?? [])
-      .filter((e) => e.join_date)
-      .map((e) => (Date.now() - new Date(e.join_date!).getTime()) / 86400000);
-    const avgTenure = tenures.length ? Math.round(tenures.reduce((a, b) => a + b, 0) / tenures.length) : 0;
-    return { promotedThisQuarter, deltaThisMonth, avgTenure };
-  }, [promotions, employees]);
+    const dir = (p: Promotion) => {
+      if (!p.from_level) return 0;
+      return LEVELS.indexOf(p.to_level) - LEVELS.indexOf(p.from_level);
+    };
+    const inQuarter = (promotions ?? []).filter((p) => new Date(p.effective_date) >= qStart);
+    const inMonth = (promotions ?? []).filter((p) => new Date(p.effective_date) >= mStart);
+    const promotionsQ = inQuarter.filter((p) => dir(p) > 0).length;
+    const demotionsQ = inQuarter.filter((p) => dir(p) < 0).length;
+    let netDelta = 0, uplift = 0, savings = 0;
+    for (const p of inMonth) {
+      const d = p.to_base_mmk - (p.from_base_mmk ?? 0);
+      netDelta += d;
+      if (d > 0) uplift += d;
+      else if (d < 0) savings += -d;
+    }
+    return { promotionsQ, demotionsQ, netDelta, uplift, savings };
+  }, [promotions]);
 
 
   return (
     <div>
-      {/* KPI strip */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Promoted this quarter</div>
-          <div className="mt-1 flex items-center gap-2 text-2xl font-semibold"><TrendingUp className="h-5 w-5 text-primary" />{stats.promotedThisQuarter}</div>
+      {/* Promotion / Demotion tracking */}
+      <div>
+        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Promotion / Demotion tracking</div>
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Promotions this quarter</div>
+            <div className="mt-1 flex items-center gap-2 text-2xl font-semibold"><TrendingUp className="h-5 w-5 text-primary" />{stats.promotionsQ}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Demotions this quarter</div>
+            <div className="mt-1 flex items-center gap-2 text-2xl font-semibold"><Minus className="h-5 w-5 text-muted-foreground" />{stats.demotionsQ}</div>
+          </div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Salary delta (this month)</div>
-          <div className="mt-1 text-2xl font-semibold">{formatMMKCompact(stats.deltaThisMonth)}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Avg tenure</div>
-          <div className="mt-1 text-2xl font-semibold">{stats.avgTenure} days</div>
+      </div>
+
+      {/* Financial impact tracking */}
+      <div className="mt-5">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Financial impact tracking</div>
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Net salary delta (this month)</div>
+            <div className="mt-1 text-2xl font-semibold">{formatMMKCompact(stats.netDelta)}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Promotion uplift (this month)</div>
+            <div className="mt-1 text-2xl font-semibold text-primary">{formatMMKCompact(stats.uplift)}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Demotion savings (this month)</div>
+            <div className="mt-1 text-2xl font-semibold">{formatMMKCompact(stats.savings)}</div>
+          </div>
         </div>
       </div>
 
