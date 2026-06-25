@@ -311,6 +311,7 @@ export type Database = {
           created_at: string
           department: Database["public"]["Enums"]["department"]
           email: string | null
+          employment_type: Database["public"]["Enums"]["employment_type"]
           full_name: string
           id: string
           join_date: string
@@ -332,6 +333,7 @@ export type Database = {
           created_at?: string
           department: Database["public"]["Enums"]["department"]
           email?: string | null
+          employment_type?: Database["public"]["Enums"]["employment_type"]
           full_name: string
           id?: string
           join_date?: string
@@ -353,6 +355,7 @@ export type Database = {
           created_at?: string
           department?: Database["public"]["Enums"]["department"]
           email?: string | null
+          employment_type?: Database["public"]["Enums"]["employment_type"]
           full_name?: string
           id?: string
           join_date?: string
@@ -1013,6 +1016,30 @@ export type Database = {
         }
         Returns: string
       }
+      compute_kpi_dashboard: {
+        Args: { _period_month?: string }
+        Returns: {
+          attendance_pct: number
+          base_salary_mmk: number
+          bonus_amount_mmk: number
+          bonus_eligible: boolean
+          days_absent: number
+          days_late: number
+          days_present: number
+          department: string
+          employee_id: string
+          employment_type: string
+          full_name: string
+          job_position: string
+          kpi_score: number
+          level: string
+          task_completion_pct: number
+          tasks_done: number
+          tasks_total: number
+          team_id: string
+          working_hours: number
+        }[]
+      }
       create_and_switch_org: { Args: { _name: string }; Returns: string }
       current_org_id: { Args: never; Returns: string }
       has_role: {
@@ -1077,6 +1104,7 @@ export type Database = {
         | "hold"
       department: "HR" | "Operations" | "Finance" | "Admin" | "Engineering"
       employee_level: "trainee" | "junior" | "mid" | "senior" | "lead"
+      employment_type: "remote" | "on_site"
       meeting_status:
         | "uploaded"
         | "transcribing"
@@ -1230,6 +1258,7 @@ export const Constants = {
       ],
       department: ["HR", "Operations", "Finance", "Admin", "Engineering"],
       employee_level: ["trainee", "junior", "mid", "senior", "lead"],
+      employment_type: ["remote", "on_site"],
       meeting_status: [
         "uploaded",
         "transcribing",
