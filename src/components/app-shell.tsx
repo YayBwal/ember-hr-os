@@ -10,9 +10,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Building2,
-  UserCog,
-  Crown,
 } from "lucide-react";
+
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
