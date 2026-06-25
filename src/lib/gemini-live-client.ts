@@ -1,5 +1,5 @@
 // Browser client for Gemini Multimodal Live (audio-in → audio-out S2S).
-// Captures mic at 16 kHz PCM16, streams over the /api/gemini-live WS proxy,
+// Captures mic at 16 kHz PCM16, streams to Gemini Live directly with an ephemeral token,
 // receives 24 kHz PCM16 audio chunks, and plays them via WebAudio scheduling.
 //
 // Tool calls coming from the model are routed back to the server via
@@ -11,7 +11,7 @@ import { dispatchAiTool } from "@/lib/dispatch-tool.functions";
 
 const MODEL = "models/gemini-2.0-flash-live-001";
 const LIVE_WS_BASE =
-  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
+  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
 
 const SYSTEM_INSTRUCTION = `You are Mandai — a friendly, professional HR/operations voice assistant in an admin app.
 LANGUAGE: Match the user's language. If they speak Burmese, reply in Burmese; English, reply in English. Mixed, keep the mix.
@@ -219,9 +219,9 @@ export class GeminiLiveSession {
     this.sourceNode.connect(this.workletNode);
     // Do not connect worklet to destination (don't echo mic to speakers).
 
-    // Open WS directly to Gemini Live. Ephemeral tokens are used "as if they
-    // were an API key" per Google's docs → pass as ?key=…, not ?access_token=…
-    const wsUrl = `${LIVE_WS_BASE}?key=${encodeURIComponent(ephemeral)}`;
+    // Open WS directly to Gemini Live. Ephemeral auth tokens must use the
+    // constrained Live endpoint and be passed via access_token.
+    const wsUrl = `${LIVE_WS_BASE}?access_token=${encodeURIComponent(ephemeral)}`;
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
 
