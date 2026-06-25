@@ -130,18 +130,26 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
     } finally { setUploading(false); }
   };
 
+  const refreshAll = () => {
+    qc.invalidateQueries({ queryKey: ["my_team_report", team.id, period.start] });
+    qc.invalidateQueries({ queryKey: ["existing_ratings"] });
+    qc.invalidateQueries({ queryKey: ["employees"] });
+    qc.invalidateQueries({ queryKey: ["employee-kpis"] });
+    qc.invalidateQueries({ queryKey: ["employee_kpis"] });
+  };
   const saveDraft = useMutation({
     mutationFn: () => save({ data: { id: existing?.id ?? null, teamId: team.id, periodStart: period.start, periodEnd: period.end, summary, fileUrl, submit: false } }),
-    onSuccess: () => { toast.success("Draft saved"); qc.invalidateQueries({ queryKey: ["my_team_report", team.id, period.start] }); },
+    onSuccess: () => { toast.success("Draft saved"); refreshAll(); },
     onError: (e: Error) => toast.error(e.message),
   });
   const submitReport = useMutation({
     mutationFn: () => save({ data: { id: existing?.id ?? null, teamId: team.id, periodStart: period.start, periodEnd: period.end, summary, fileUrl, submit: true } }),
-    onSuccess: () => { toast.success("Report submitted"); qc.invalidateQueries({ queryKey: ["my_team_report", team.id, period.start] }); },
+    onSuccess: () => { toast.success("Report submitted"); refreshAll(); },
     onError: (e: Error) => toast.error(e.message),
   });
 
-  const locked = existing?.status === "submitted";
+  // Reports stay editable for the whole period — TL can keep rating and updating until next month.
+  const locked = false;
 
   return (
     <div className="rounded-xl border border-border bg-card p-5">
@@ -188,6 +196,9 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
               }} onSubmitRating={async (id, rating, note) => {
                 await rate({ data: { reportId: id, employeeId: m.id, rating, note } });
                 qc.invalidateQueries({ queryKey: ["existing_ratings", id] });
+                qc.invalidateQueries({ queryKey: ["employees"] });
+                qc.invalidateQueries({ queryKey: ["employee-kpis"] });
+                qc.invalidateQueries({ queryKey: ["employee_kpis"] });
               }} />;
             })}
             {(members?.length ?? 0) === 0 && <div className="text-xs text-muted-foreground">No team members.</div>}
