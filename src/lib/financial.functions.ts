@@ -61,11 +61,9 @@ export const promoteEmployee = createServerFn({ method: "POST" })
     toBaseMmk: number;
     effectiveDate?: string;
     note: string;
-    kpiAdjustment?: number;
   }) => {
     if (!d.note || d.note.trim().length === 0) throw new Error("Reason is required");
-    const adj = Math.max(-50, Math.min(50, Number(d.kpiAdjustment ?? 0)));
-    return { ...d, note: d.note.trim(), kpiAdjustment: adj };
+    return { ...d, note: d.note.trim() };
   })
   .handler(async ({ data, context }) => {
     const { data: id, error } = await context.supabase.rpc("promote_employee", {
@@ -75,7 +73,6 @@ export const promoteEmployee = createServerFn({ method: "POST" })
       _to_base_mmk: data.toBaseMmk,
       _effective_date: data.effectiveDate ?? new Date().toISOString().slice(0, 10),
       _note: data.note,
-      _kpi_adjustment: data.kpiAdjustment,
     } as never);
     if (error) throw new Error(error.message);
     return { id };
