@@ -18,6 +18,7 @@ export type KpiRow = {
   days_late: number;
   days_absent: number;
   working_hours: number;
+  overtime_hours: number;
   kpi_score: number;
   system_eligible: boolean;
   eligible_override: boolean | null;
