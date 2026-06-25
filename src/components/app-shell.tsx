@@ -28,7 +28,27 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
-import { VoiceAssistant } from "@/components/voice-assistant";
+const VoiceAssistant = lazy(() =>
+  import("@/components/voice-assistant").then((m) => ({ default: m.VoiceAssistant })),
+);
+
+function DeferredVoiceAssistant() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
+    const schedule = w.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 1500));
+    const id = schedule(() => setReady(true));
+    return () => {
+      if (typeof id === "number") window.clearTimeout(id);
+    };
+  }, []);
+  if (!ready) return null;
+  return (
+    <Suspense fallback={null}>
+      <VoiceAssistant />
+    </Suspense>
+  );
+}
 
 type Profile = { id: string; full_name: string | null; org_id: string };
 type Org = { id: string; name: string };
