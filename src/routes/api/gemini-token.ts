@@ -31,30 +31,15 @@ export const Route = createFileRoute("/api/gemini-token")({
         const { data: userRes, error: userErr } = await sb.auth.getUser(token);
         if (userErr || !userRes.user) return new Response("Unauthorized", { status: 401 });
 
-        // The client posts its locked session setup; we forward it inside the
-        // bidiGenerateContentSetup so Google enforces it.
-        let body: { setup?: Record<string, unknown> } = {};
-        try {
-          body = (await request.json()) as { setup?: Record<string, unknown> };
-        } catch {
-          /* empty body is ok */
-        }
-
+        // Mint an unlocked single-use token; the client sends `setup` over the WS.
         const now = Date.now();
-        // Token must be used to open a connection within 60s.
-        // Once the WS session opens, it can run up to 10 minutes.
-        const expireTime = new Date(now + 60_000).toISOString();
-        const newSessionExpireTime = new Date(now + 10 * 60_000).toISOString();
+        const newSessionExpireTime = new Date(now + 60_000).toISOString();
+        const expireTime = new Date(now + 30 * 60_000).toISOString();
 
         const res = await fetch(`${AUTH_TOKENS_URL}?key=${apiKey}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            uses: 1,
-            expireTime,
-            newSessionExpireTime,
-            bidiGenerateContentSetup: body.setup ?? {},
-          }),
+          body: JSON.stringify({ uses: 1, expireTime, newSessionExpireTime }),
         });
         if (!res.ok) {
           const text = await res.text().catch(() => "");
