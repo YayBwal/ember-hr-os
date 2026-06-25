@@ -236,21 +236,33 @@ export class GeminiLiveSession {
           }
           if (typeof part.text === "string" && part.text) {
             this.currentAiText += part.text;
+            this.emit({ type: "ai_text", text: this.currentAiText, partial: true });
           }
         }
       }
+      // Input transcription stream (user's spoken words).
+      const inputTx = sc.inputTranscription as { text?: string } | undefined;
+      if (inputTx?.text) {
+        this.currentUserText += inputTx.text;
+        this.emit({ type: "user_text", text: this.currentUserText, partial: true });
+      }
+      // Output transcription stream (what the model is saying aloud).
+      const outputTx = sc.outputTranscription as { text?: string } | undefined;
+      if (outputTx?.text) {
+        this.currentAiText += outputTx.text;
+        this.emit({ type: "ai_text", text: this.currentAiText, partial: true });
+      }
       if (sc.turnComplete) {
+        if (this.currentUserText.trim()) {
+          this.emit({ type: "user_text", text: this.currentUserText.trim(), partial: false });
+          this.currentUserText = "";
+        }
         if (this.currentAiText.trim()) {
-          this.emit({ type: "ai_text", text: this.currentAiText.trim() });
+          this.emit({ type: "ai_text", text: this.currentAiText.trim(), partial: false });
           this.currentAiText = "";
         }
         this.setStatus("listening");
       }
-      // Input transcription (if enabled by server)
-      const inputTx = sc.inputTranscription as { text?: string } | undefined;
-      if (inputTx?.text) this.emit({ type: "user_text", text: inputTx.text });
-      const outputTx = sc.outputTranscription as { text?: string } | undefined;
-      if (outputTx?.text) this.currentAiText += outputTx.text;
     }
 
     // toolCall -> dispatch -> send toolResponse
