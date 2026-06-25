@@ -17,7 +17,6 @@ import { Route as ApiLivekitTokenRouteImport } from './routes/api/livekit-token'
 import { Route as AuthenticatedTeamLeaderRouteImport } from './routes/_authenticated/team-leader'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
-import { Route as AuthenticatedOrganizationRouteImport } from './routes/_authenticated/organization'
 import { Route as AuthenticatedOperationsRouteImport } from './routes/_authenticated/operations'
 import { Route as AuthenticatedFinancialRouteImport } from './routes/_authenticated/financial'
 import { Route as ApiPublicAgentToolsRouteImport } from './routes/api/public/agent/tools'
@@ -61,12 +60,6 @@ const AuthenticatedPipelineRoute = AuthenticatedPipelineRouteImport.update({
   path: '/pipeline',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedOrganizationRoute =
-  AuthenticatedOrganizationRouteImport.update({
-    id: '/organization',
-    path: '/organization',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedOperationsRoute = AuthenticatedOperationsRouteImport.update({
   id: '/operations',
   path: '/operations',
@@ -89,7 +82,6 @@ export interface FileRoutesByFullPath {
   '/reset-password': typeof ResetPasswordRoute
   '/financial': typeof AuthenticatedFinancialRoute
   '/operations': typeof AuthenticatedOperationsRoute
-  '/organization': typeof AuthenticatedOrganizationRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team-leader': typeof AuthenticatedTeamLeaderRoute
@@ -102,7 +94,6 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/financial': typeof AuthenticatedFinancialRoute
   '/operations': typeof AuthenticatedOperationsRoute
-  '/organization': typeof AuthenticatedOrganizationRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team-leader': typeof AuthenticatedTeamLeaderRoute
@@ -117,7 +108,6 @@ export interface FileRoutesById {
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/financial': typeof AuthenticatedFinancialRoute
   '/_authenticated/operations': typeof AuthenticatedOperationsRoute
-  '/_authenticated/organization': typeof AuthenticatedOrganizationRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/team-leader': typeof AuthenticatedTeamLeaderRoute
@@ -132,7 +122,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/financial'
     | '/operations'
-    | '/organization'
     | '/pipeline'
     | '/settings'
     | '/team-leader'
@@ -145,7 +134,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/financial'
     | '/operations'
-    | '/organization'
     | '/pipeline'
     | '/settings'
     | '/team-leader'
@@ -159,7 +147,6 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/_authenticated/financial'
     | '/_authenticated/operations'
-    | '/_authenticated/organization'
     | '/_authenticated/pipeline'
     | '/_authenticated/settings'
     | '/_authenticated/team-leader'
@@ -234,13 +221,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPipelineRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/organization': {
-      id: '/_authenticated/organization'
-      path: '/organization'
-      fullPath: '/organization'
-      preLoaderRoute: typeof AuthenticatedOrganizationRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/operations': {
       id: '/_authenticated/operations'
       path: '/operations'
@@ -268,7 +248,6 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedFinancialRoute: typeof AuthenticatedFinancialRoute
   AuthenticatedOperationsRoute: typeof AuthenticatedOperationsRoute
-  AuthenticatedOrganizationRoute: typeof AuthenticatedOrganizationRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedTeamLeaderRoute: typeof AuthenticatedTeamLeaderRoute
@@ -277,7 +256,6 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedFinancialRoute: AuthenticatedFinancialRoute,
   AuthenticatedOperationsRoute: AuthenticatedOperationsRoute,
-  AuthenticatedOrganizationRoute: AuthenticatedOrganizationRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedTeamLeaderRoute: AuthenticatedTeamLeaderRoute,
