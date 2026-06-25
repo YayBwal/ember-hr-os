@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
@@ -7,8 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
+import { useHasRole } from "@/hooks/use-user-roles";
+import { createTeamLeader, listTeamLeaders, deleteTeamLeader } from "@/lib/admin-users.functions";
+import { Crown, Trash2, UserPlus } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings · Mandai" }] }),
