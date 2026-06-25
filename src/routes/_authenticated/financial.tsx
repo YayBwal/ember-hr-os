@@ -678,7 +678,13 @@ function KpiTab() {
   const filters = (
     <div className="flex flex-wrap items-end gap-3">
       <div className="space-y-1">
-        <Label className="text-xs">Period</Label>
+        <Label className="text-xs flex items-center gap-1.5">
+          Period
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Live · Operations sync
+          </span>
+        </Label>
         <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} className="h-9 w-[160px]" />
       </div>
       <div className="space-y-1">
