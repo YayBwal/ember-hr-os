@@ -188,6 +188,8 @@ export class GeminiLiveSession {
             },
             systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
             tools: LIVE_TOOLS,
+            inputAudioTranscription: {},
+            outputAudioTranscription: {},
           },
         }),
       );
