@@ -96,6 +96,8 @@ export type Database = {
           created_at: string
           email: string | null
           full_name: string
+          held_at: string | null
+          hold_reason: string | null
           id: string
           next_action: string | null
           notes: string | null
@@ -111,6 +113,8 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name: string
+          held_at?: string | null
+          hold_reason?: string | null
           id?: string
           next_action?: string | null
           notes?: string | null
@@ -126,6 +130,8 @@ export type Database = {
           created_at?: string
           email?: string | null
           full_name?: string
+          held_at?: string | null
+          hold_reason?: string | null
           id?: string
           next_action?: string | null
           notes?: string | null
@@ -1068,6 +1074,7 @@ export type Database = {
         | "trainee"
         | "hired"
         | "rejected"
+        | "hold"
       department: "HR" | "Operations" | "Finance" | "Admin" | "Engineering"
       employee_level: "trainee" | "junior" | "mid" | "senior" | "lead"
       meeting_status:
@@ -1219,6 +1226,7 @@ export const Constants = {
         "trainee",
         "hired",
         "rejected",
+        "hold",
       ],
       department: ["HR", "Operations", "Finance", "Admin", "Engineering"],
       employee_level: ["trainee", "junior", "mid", "senior", "lead"],
