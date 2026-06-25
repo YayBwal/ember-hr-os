@@ -219,14 +219,15 @@ export class GeminiLiveSession {
     this.sourceNode.connect(this.workletNode);
     // Do not connect worklet to destination (don't echo mic to speakers).
 
-    // Open WS directly to Gemini Live with the ephemeral token.
-    const wsUrl = `${LIVE_WS_BASE}?access_token=${encodeURIComponent(ephemeral)}`;
+    // Open WS directly to Gemini Live. Ephemeral tokens are used "as if they
+    // were an API key" per Google's docs → pass as ?key=…, not ?access_token=…
+    const wsUrl = `${LIVE_WS_BASE}?key=${encodeURIComponent(ephemeral)}`;
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
 
     ws.onopen = () => {
-      // Setup is already locked into the ephemeral token (bidiGenerateContentSetup),
-      // so we don't send another `setup` message — the session is ready to stream.
+      // Send the session setup now that the socket is open.
+      ws.send(JSON.stringify({ setup: setupPayload }));
       this.setStatus("listening");
     };
 
