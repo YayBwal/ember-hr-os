@@ -225,24 +225,8 @@ export class GeminiLiveSession {
     this.ws = ws;
 
     ws.onopen = () => {
-      // Send setup.
-      ws.send(
-        JSON.stringify({
-          setup: {
-            model: MODEL,
-            generationConfig: {
-              responseModalities: ["AUDIO"],
-              speechConfig: {
-                voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
-              },
-            },
-            systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-            tools: LIVE_TOOLS,
-            inputAudioTranscription: {},
-            outputAudioTranscription: {},
-          },
-        }),
-      );
+      // Setup is already locked into the ephemeral token (bidiGenerateContentSetup),
+      // so we don't send another `setup` message — the session is ready to stream.
       this.setStatus("listening");
     };
 
