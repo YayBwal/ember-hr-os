@@ -3,10 +3,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type Dept = "HR" | "Operations" | "Finance" | "Admin" | "Engineering";
 
-function periodMonth(d?: string) {
-  const date = d ? new Date(d) : new Date();
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)).toISOString().slice(0, 10);
-}
 
 export const approveCandidate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
