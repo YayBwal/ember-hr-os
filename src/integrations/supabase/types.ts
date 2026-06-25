@@ -495,6 +495,86 @@ export type Database = {
           },
         ]
       }
+      kpi_override_audit: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          employee_id: string
+          field: string
+          id: string
+          new_value: string | null
+          note: string | null
+          old_value: string | null
+          period_month: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          employee_id: string
+          field: string
+          id?: string
+          new_value?: string | null
+          note?: string | null
+          old_value?: string | null
+          period_month: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          employee_id?: string
+          field?: string
+          id?: string
+          new_value?: string | null
+          note?: string | null
+          old_value?: string | null
+          period_month?: string
+        }
+        Relationships: []
+      }
+      kpi_overrides: {
+        Row: {
+          bonus_override_mmk: number | null
+          created_at: string
+          eligible_override: boolean | null
+          employee_id: string
+          id: string
+          note: string | null
+          period_month: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          bonus_override_mmk?: number | null
+          created_at?: string
+          eligible_override?: boolean | null
+          employee_id: string
+          id?: string
+          note?: string | null
+          period_month: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          bonus_override_mmk?: number | null
+          created_at?: string
+          eligible_override?: boolean | null
+          employee_id?: string
+          id?: string
+          note?: string | null
+          period_month?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kpi_overrides_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       meeting_summaries: {
         Row: {
           action_items: Json
@@ -1230,18 +1310,23 @@ export type Database = {
         Returns: {
           attendance_pct: number
           base_salary_mmk: number
-          bonus_amount_mmk: number
-          bonus_eligible: boolean
+          bonus_override_mmk: number
           days_absent: number
           days_late: number
           days_present: number
           department: string
+          eligible_override: boolean
           employee_id: string
           employment_type: string
+          final_bonus_mmk: number
+          final_eligible: boolean
           full_name: string
           job_position: string
           kpi_score: number
           level: string
+          override_note: string
+          system_bonus_mmk: number
+          system_eligible: boolean
           task_completion_pct: number
           tasks_done: number
           tasks_total: number
@@ -1293,6 +1378,23 @@ export type Database = {
       remove_team_leader: { Args: { _team_id: string }; Returns: undefined }
       remove_team_member: {
         Args: { _employee_id: string; _team_id: string }
+        Returns: undefined
+      }
+      set_kpi_bonus_override: {
+        Args: {
+          _amount_mmk: number
+          _employee_id: string
+          _note: string
+          _period_month: string
+        }
+        Returns: undefined
+      }
+      set_kpi_eligibility: {
+        Args: {
+          _eligible: boolean
+          _employee_id: string
+          _period_month: string
+        }
         Returns: undefined
       }
       set_org_default_trainee_salary: {

@@ -18,7 +18,8 @@ import { Loader2, Plus, Minus, RefreshCw, TrendingUp, Sparkles, History } from "
 import { formatMMK, formatMMKCompact } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
 import { addBonus, addDeduction, runPayroll, promoteEmployee, type EmployeeLevel } from "@/lib/financial.functions";
-import { getKpiDashboard, setEmploymentType, type KpiRow } from "@/lib/kpi.functions";
+import { getKpiDashboard, setEmploymentType, setKpiEligibility, setKpiBonusOverride, type KpiRow } from "@/lib/kpi.functions";
+import { Switch } from "@/components/ui/switch";
 
 export const Route = createFileRoute("/_authenticated/financial")({
   head: () => ({ meta: [{ title: "Financial · Mandai" }] }),
@@ -621,145 +622,373 @@ function KpiTab() {
     if (!list.length) return { avgKpi: 0, eligible: 0, avgAtt: 0, totalBonus: 0 };
     const avgKpi = list.reduce((a, r) => a + Number(r.kpi_score), 0) / list.length;
     const avgAtt = list.reduce((a, r) => a + Number(r.attendance_pct), 0) / list.length;
-    const eligible = list.filter((r) => r.bonus_eligible).length;
-    const totalBonus = list.reduce((a, r) => a + Number(r.bonus_amount_mmk), 0);
+    const eligible = list.filter((r) => r.final_eligible).length;
+    const totalBonus = list.reduce((a, r) => a + Number(r.final_bonus_mmk), 0);
     return { avgKpi, eligible, avgAtt, totalBonus };
   }, [filtered]);
 
+  const filters = (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="space-y-1">
+        <Label className="text-xs">Period</Label>
+        <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} className="h-9 w-[160px]" />
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Department</Label>
+        <Select value={dept} onValueChange={setDept}>
+          <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All departments</SelectItem>
+            {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs">Employment type</Label>
+        <Select value={type} onValueChange={setTypeFilter}>
+          <SelectTrigger className="h-9 w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="on_site">On-Site</SelectItem>
+            <SelectItem value="remote">Remote</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1 flex-1 min-w-[200px]">
+        <Label className="text-xs">Search</Label>
+        <Input placeholder="Employee name" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9" />
+      </div>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="space-y-1">
-          <Label className="text-xs">Period</Label>
-          <Input type="month" value={period} onChange={(e) => setPeriod(e.target.value)} className="h-9 w-[160px]" />
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Department</Label>
-          <Select value={dept} onValueChange={setDept}>
-            <SelectTrigger className="h-9 w-[160px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All departments</SelectItem>
-              {departments.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1">
-          <Label className="text-xs">Employment type</Label>
-          <Select value={type} onValueChange={setTypeFilter}>
-            <SelectTrigger className="h-9 w-[140px]"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="on_site">On-Site</SelectItem>
-              <SelectItem value="remote">Remote</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="space-y-1 flex-1 min-w-[200px]">
-          <Label className="text-xs">Search</Label>
-          <Input placeholder="Employee name" value={search} onChange={(e) => setSearch(e.target.value)} className="h-9" />
-        </div>
-      </div>
-
-      {/* Summary cards */}
+      {filters}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard label="Avg KPI" value={summary.avgKpi.toFixed(1)} suffix="%" />
         <KpiCard label="Bonus Eligible" value={`${summary.eligible}`} suffix={` / ${filtered.length}`} />
         <KpiCard label="Avg Attendance" value={summary.avgAtt.toFixed(1)} suffix="%" />
-        <KpiCard label="Projected Bonus" value={formatMMKCompact(summary.totalBonus)} />
+        <KpiCard label="Final Bonus Total" value={formatMMKCompact(summary.totalBonus)} />
       </div>
 
-      {/* Table */}
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="eligible">Eligible</TabsTrigger>
+          <TabsTrigger value="bonus">Bonus</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="mt-4">
+          <div className="overflow-x-auto rounded-xl border border-border bg-card">
+            <table className="w-full text-sm">
+              <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+                <tr>
+                  <th className="px-4 py-3 text-left">Employee</th>
+                  <th className="px-4 py-3 text-left">Type</th>
+                  <th className="px-4 py-3 text-right">Base</th>
+                  <th className="px-4 py-3 text-right">Tasks</th>
+                  <th className="px-4 py-3 text-right">Attendance</th>
+                  <th className="px-4 py-3 text-right">Hours</th>
+                  <th className="px-4 py-3 text-right">KPI</th>
+                  <th className="px-4 py-3 text-center">Eligible</th>
+                  <th className="px-4 py-3 text-right">Bonus</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading && (
+                  <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
+                    <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                  </td></tr>
+                )}
+                {!isLoading && filtered.length === 0 && (
+                  <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No employees match the filters.</td></tr>
+                )}
+                {filtered.map((r) => {
+                  const isOpen = expanded === r.employee_id;
+                  return (
+                    <Fragment key={r.employee_id}>
+                      <tr className="cursor-pointer border-t border-border hover:bg-muted/30" onClick={() => setExpanded(isOpen ? null : r.employee_id)}>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">{r.full_name}</div>
+                          <div className="text-xs text-muted-foreground">{r.job_position} · {r.department}</div>
+                        </td>
+                        <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                          <Select
+                            value={r.employment_type}
+                            onValueChange={(v) => typeMut.mutate({ employeeId: r.employee_id, type: v as "remote" | "on_site" })}
+                          >
+                            <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue /></SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="on_site">On-Site</SelectItem>
+                              <SelectItem value="remote">Remote</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </td>
+                        <td className="px-4 py-3 text-right">{formatMMKCompact(r.base_salary_mmk)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <span className="font-medium">{Number(r.task_completion_pct).toFixed(0)}%</span>
+                          <div className="text-[10px] text-muted-foreground">{r.tasks_done}/{r.tasks_total}</div>
+                        </td>
+                        <td className="px-4 py-3 text-right">{Number(r.attendance_pct).toFixed(0)}%</td>
+                        <td className="px-4 py-3 text-right">{Number(r.working_hours).toFixed(0)}h</td>
+                        <td className="px-4 py-3 text-right font-medium">{Number(r.kpi_score).toFixed(1)}</td>
+                        <td className="px-4 py-3 text-center">
+                          {r.final_eligible
+                            ? <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">Yes</Badge>
+                            : <Badge variant="secondary" className="text-[10px]">No</Badge>}
+                        </td>
+                        <td className="px-4 py-3 text-right text-emerald-600">
+                          {r.final_bonus_mmk > 0 ? `+${formatMMKCompact(r.final_bonus_mmk)}` : "—"}
+                        </td>
+                      </tr>
+                      {isOpen && (
+                        <tr className="border-t border-border bg-muted/20">
+                          <td colSpan={9} className="px-4 py-3 text-xs text-muted-foreground">
+                            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                              <div><span className="text-foreground font-medium">{r.days_present}</span> days present</div>
+                              <div><span className="text-foreground font-medium">{r.days_late}</span> days late</div>
+                              <div><span className="text-foreground font-medium">{r.days_absent}</span> days absent</div>
+                              <div><span className="text-foreground font-medium">{r.tasks_done}/{r.tasks_total}</span> tasks completed</div>
+                              <div>Level: <span className="text-foreground font-medium">{LEVEL_LABEL[r.level as EmployeeLevel] ?? r.level}</span></div>
+                              <div>Bonus tier: <span className="text-foreground font-medium">{bonusTier(Number(r.kpi_score))}</span></div>
+                              <div>Final bonus: <span className="text-foreground font-medium">{formatMMK(r.final_bonus_mmk)}</span></div>
+                              <div>Base salary: <span className="text-foreground font-medium">{formatMMK(r.base_salary_mmk)}</span></div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Eligibility: On-Site requires KPI ≥ 80 and Attendance ≥ 85%. Remote requires KPI ≥ 75 and Attendance ≥ 90%. Admin overrides take precedence over system rules.
+          </p>
+        </TabsContent>
+
+        <TabsContent value="eligible" className="mt-4">
+          <EligibleSubTab rows={filtered} periodMonth={periodMonth} isLoading={isLoading} />
+        </TabsContent>
+
+        <TabsContent value="bonus" className="mt-4">
+          <BonusSubTab rows={filtered} periodMonth={periodMonth} isLoading={isLoading} />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+/* ---------------- Eligible sub-tab ---------------- */
+function EligibleSubTab({ rows, periodMonth, isLoading }: { rows: KpiRow[]; periodMonth: string; isLoading: boolean }) {
+  const qc = useQueryClient();
+  const setElig = useServerFn(setKpiEligibility);
+  const mut = useMutation({
+    mutationFn: (v: { employeeId: string; eligible: boolean | null }) =>
+      setElig({ data: { employeeId: v.employeeId, periodMonth, eligible: v.eligible } }),
+    onMutate: async (v) => {
+      await qc.cancelQueries({ queryKey: ["kpi_dashboard", periodMonth] });
+      const prev = qc.getQueryData<KpiRow[]>(["kpi_dashboard", periodMonth]);
+      qc.setQueryData<KpiRow[]>(["kpi_dashboard", periodMonth], (old) =>
+        (old ?? []).map((r) => r.employee_id === v.employeeId
+          ? { ...r, eligible_override: v.eligible, final_eligible: v.eligible ?? r.system_eligible }
+          : r),
+      );
+      return { prev };
+    },
+    onError: (e: Error, _v, ctx) => {
+      if (ctx?.prev) qc.setQueryData(["kpi_dashboard", periodMonth], ctx.prev);
+      toast.error(e.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["kpi_dashboard", periodMonth] });
+      qc.invalidateQueries({ queryKey: ["payroll_lines"] });
+      toast.success("Eligibility updated");
+    },
+  });
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-border bg-card">
+      <table className="w-full text-sm">
+        <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
+          <tr>
+            <th className="px-4 py-3 text-left">Employee</th>
+            <th className="px-4 py-3 text-right">KPI</th>
+            <th className="px-4 py-3 text-right">Attendance</th>
+            <th className="px-4 py-3 text-center">System</th>
+            <th className="px-4 py-3 text-center">Eligible (Admin)</th>
+            <th className="px-4 py-3 text-right">Reset</th>
+          </tr>
+        </thead>
+        <tbody>
+          {isLoading && <tr><td colSpan={6} className="px-4 py-8 text-center"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></td></tr>}
+          {!isLoading && rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No employees.</td></tr>}
+          {rows.map((r) => (
+            <tr key={r.employee_id} className="border-t border-border hover:bg-muted/30">
+              <td className="px-4 py-3">
+                <div className="font-medium">{r.full_name}</div>
+                <div className="text-xs text-muted-foreground">{r.job_position} · {r.department}</div>
+              </td>
+              <td className="px-4 py-3 text-right">{Number(r.kpi_score).toFixed(1)}</td>
+              <td className="px-4 py-3 text-right">{Number(r.attendance_pct).toFixed(0)}%</td>
+              <td className="px-4 py-3 text-center">
+                {r.system_eligible
+                  ? <Badge variant="outline" className="border-emerald-500/40 text-emerald-700">Yes</Badge>
+                  : <Badge variant="outline" className="text-muted-foreground">No</Badge>}
+              </td>
+              <td className="px-4 py-3 text-center">
+                <div className="flex items-center justify-center gap-2">
+                  <Switch
+                    checked={r.final_eligible}
+                    onCheckedChange={(v) => mut.mutate({ employeeId: r.employee_id, eligible: v })}
+                    disabled={mut.isPending}
+                  />
+                  <span className="text-xs">
+                    {r.final_eligible ? "Yes" : "No"}
+                    {r.eligible_override !== null && <span className="ml-1 text-amber-600">(override)</span>}
+                  </span>
+                </div>
+              </td>
+              <td className="px-4 py-3 text-right">
+                {r.eligible_override !== null && (
+                  <Button size="sm" variant="ghost"
+                    onClick={() => mut.mutate({ employeeId: r.employee_id, eligible: null })}
+                    disabled={mut.isPending}>
+                    Reset
+                  </Button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/* ---------------- Bonus sub-tab ---------------- */
+function BonusSubTab({ rows, periodMonth, isLoading }: { rows: KpiRow[]; periodMonth: string; isLoading: boolean }) {
+  const qc = useQueryClient();
+  const setBonus = useServerFn(setKpiBonusOverride);
+  const [dlg, setDlg] = useState<{ row: KpiRow } | null>(null);
+  const [amount, setAmount] = useState<string>("");
+  const [note, setNote] = useState<string>("");
+
+  function openDialog(r: KpiRow) {
+    setDlg({ row: r });
+    setAmount(String(r.bonus_override_mmk ?? r.system_bonus_mmk ?? 0));
+    setNote(r.override_note ?? "");
+  }
+
+  const mut = useMutation({
+    mutationFn: (v: { employeeId: string; amountMmk: number | null; note: string | null }) =>
+      setBonus({ data: { employeeId: v.employeeId, periodMonth, amountMmk: v.amountMmk, note: v.note } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["kpi_dashboard", periodMonth] });
+      qc.invalidateQueries({ queryKey: ["payroll_lines"] });
+      toast.success("Bonus updated");
+      setDlg(null);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  function save() {
+    if (!dlg) return;
+    const n = Number(amount);
+    if (!Number.isFinite(n) || n < 0) { toast.error("Enter a valid amount"); return; }
+    if (!note.trim()) { toast.error("Reason note is required"); return; }
+    mut.mutate({ employeeId: dlg.row.employee_id, amountMmk: Math.round(n), note: note.trim() });
+  }
+
+  function reset(r: KpiRow) {
+    mut.mutate({ employeeId: r.employee_id, amountMmk: null, note: null });
+  }
+
+  return (
+    <>
       <div className="overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-sm">
           <thead className="bg-muted/40 text-xs uppercase tracking-wider text-muted-foreground">
             <tr>
               <th className="px-4 py-3 text-left">Employee</th>
-              <th className="px-4 py-3 text-left">Type</th>
-              <th className="px-4 py-3 text-right">Base</th>
-              <th className="px-4 py-3 text-right">Tasks</th>
-              <th className="px-4 py-3 text-right">Attendance</th>
-              <th className="px-4 py-3 text-right">Hours</th>
-              <th className="px-4 py-3 text-right">KPI</th>
               <th className="px-4 py-3 text-center">Eligible</th>
-              <th className="px-4 py-3 text-right">Bonus</th>
+              <th className="px-4 py-3 text-right">Recommended</th>
+              <th className="px-4 py-3 text-right">Final</th>
+              <th className="px-4 py-3 text-left">Note</th>
+              <th className="px-4 py-3 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {isLoading && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
-                <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-              </td></tr>
-            )}
-            {!isLoading && filtered.length === 0 && (
-              <tr><td colSpan={9} className="px-4 py-8 text-center text-sm text-muted-foreground">No employees match the filters.</td></tr>
-            )}
-            {filtered.map((r) => {
-              const isOpen = expanded === r.employee_id;
+            {isLoading && <tr><td colSpan={6} className="px-4 py-8 text-center"><Loader2 className="mx-auto h-4 w-4 animate-spin" /></td></tr>}
+            {!isLoading && rows.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">No employees.</td></tr>}
+            {rows.map((r) => {
+              const overridden = r.bonus_override_mmk !== null;
               return (
-                <Fragment key={r.employee_id}>
-                  <tr className="cursor-pointer border-t border-border hover:bg-muted/30" onClick={() => setExpanded(isOpen ? null : r.employee_id)}>
-                    <td className="px-4 py-3">
-                      <div className="font-medium">{r.full_name}</div>
-                      <div className="text-xs text-muted-foreground">{r.job_position} · {r.department}</div>
-                    </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <Select
-                        value={r.employment_type}
-                        onValueChange={(v) => typeMut.mutate({ employeeId: r.employee_id, type: v as "remote" | "on_site" })}
-                      >
-                        <SelectTrigger className="h-7 w-[110px] text-xs"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="on_site">On-Site</SelectItem>
-                          <SelectItem value="remote">Remote</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </td>
-                    <td className="px-4 py-3 text-right">{formatMMKCompact(r.base_salary_mmk)}</td>
-                    <td className="px-4 py-3 text-right">
-                      <span className="font-medium">{Number(r.task_completion_pct).toFixed(0)}%</span>
-                      <div className="text-[10px] text-muted-foreground">{r.tasks_done}/{r.tasks_total}</div>
-                    </td>
-                    <td className="px-4 py-3 text-right">{Number(r.attendance_pct).toFixed(0)}%</td>
-                    <td className="px-4 py-3 text-right">{Number(r.working_hours).toFixed(0)}h</td>
-                    <td className="px-4 py-3 text-right font-medium">{Number(r.kpi_score).toFixed(1)}</td>
-                    <td className="px-4 py-3 text-center">
-                      {r.bonus_eligible
-                        ? <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">Yes</Badge>
-                        : <Badge variant="secondary" className="text-[10px]">No</Badge>}
-                    </td>
-                    <td className="px-4 py-3 text-right text-emerald-600">
-                      {r.bonus_amount_mmk > 0 ? `+${formatMMKCompact(r.bonus_amount_mmk)}` : "—"}
-                    </td>
-                  </tr>
-                  {isOpen && (
-                    <tr className="border-t border-border bg-muted/20">
-                      <td colSpan={9} className="px-4 py-3 text-xs text-muted-foreground">
-                        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                          <div><span className="text-foreground font-medium">{r.days_present}</span> days present</div>
-                          <div><span className="text-foreground font-medium">{r.days_late}</span> days late</div>
-                          <div><span className="text-foreground font-medium">{r.days_absent}</span> days absent</div>
-                          <div><span className="text-foreground font-medium">{r.tasks_done}/{r.tasks_total}</span> tasks completed</div>
-                          <div>Level: <span className="text-foreground font-medium">{LEVEL_LABEL[r.level as EmployeeLevel] ?? r.level}</span></div>
-                          <div>Bonus tier: <span className="text-foreground font-medium">{bonusTier(Number(r.kpi_score))}</span></div>
-                          <div>Projected bonus: <span className="text-foreground font-medium">{formatMMK(r.bonus_amount_mmk)}</span></div>
-                          <div>Base salary: <span className="text-foreground font-medium">{formatMMK(r.base_salary_mmk)}</span></div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
+                <tr key={r.employee_id} className="border-t border-border hover:bg-muted/30">
+                  <td className="px-4 py-3">
+                    <div className="font-medium">{r.full_name}</div>
+                    <div className="text-xs text-muted-foreground">{r.job_position} · {r.department}</div>
+                  </td>
+                  <td className="px-4 py-3 text-center">
+                    {r.final_eligible
+                      ? <Badge className="bg-emerald-500/15 text-emerald-700 hover:bg-emerald-500/15">Yes</Badge>
+                      : <Badge variant="secondary">No</Badge>}
+                  </td>
+                  <td className="px-4 py-3 text-right text-muted-foreground">{formatMMKCompact(r.system_bonus_mmk)}</td>
+                  <td className="px-4 py-3 text-right font-medium text-emerald-600">
+                    {formatMMKCompact(r.final_bonus_mmk)}
+                    {overridden && <span className="ml-1 text-[10px] text-amber-600">(override)</span>}
+                  </td>
+                  <td className="px-4 py-3 max-w-[240px] truncate text-xs text-muted-foreground" title={r.override_note ?? ""}>
+                    {r.override_note ?? "—"}
+                  </td>
+                  <td className="px-4 py-3 text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="sm" variant="outline" disabled={!r.final_eligible || mut.isPending} onClick={() => openDialog(r)}>
+                        {overridden ? "Edit" : "Override"}
+                      </Button>
+                      {overridden && (
+                        <Button size="sm" variant="ghost" onClick={() => reset(r)} disabled={mut.isPending}>Reset</Button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
               );
             })}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted-foreground">
-        Eligibility: On-Site requires KPI ≥ 80 and Attendance ≥ 85%. Remote requires KPI ≥ 75 and Attendance ≥ 90%. Bonus amount mirrors the payroll engine's KPI tier.
-      </p>
-    </div>
+
+      <Dialog open={!!dlg} onOpenChange={(o) => !o && setDlg(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Override bonus · {dlg?.row.full_name}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="rounded-lg bg-muted/40 p-3 text-xs">
+              <div>System recommended: <span className="font-medium text-foreground">{formatMMK(dlg?.row.system_bonus_mmk ?? 0)}</span></div>
+              <div>KPI: <span className="font-medium text-foreground">{Number(dlg?.row.kpi_score ?? 0).toFixed(1)}</span> · Tier: <span className="font-medium text-foreground">{bonusTier(Number(dlg?.row.kpi_score ?? 0))}</span></div>
+            </div>
+            <div>
+              <Label className="text-xs">Final bonus (MMK)</Label>
+              <Input type="number" min={0} value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+            <div>
+              <Label className="text-xs">Reason (required)</Label>
+              <Textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Outstanding client deal closed this month" rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDlg(null)}>Cancel</Button>
+            <Button onClick={save} disabled={mut.isPending || !note.trim()}>
+              {mut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
+
 
 function KpiCard({ label, value, suffix }: { label: string; value: string; suffix?: string }) {
   return (
