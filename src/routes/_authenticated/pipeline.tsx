@@ -32,15 +32,25 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
-const STAGES = ["screening", "interview", "trainee", "hired"] as const;
+const STAGES = ["screening", "interview", "trainee", "hold", "hired"] as const;
 type Stage = (typeof STAGES)[number] | "rejected";
 
 const STAGE_LABELS: Record<Stage, string> = {
   screening: "Screening",
   interview: "Interview",
   trainee: "Trainee",
+  hold: "Hold",
   hired: "Hired",
   rejected: "Rejected",
+};
+
+const STAGE_HINTS: Record<Stage, string> = {
+  screening: "Fresh applications awaiting first look",
+  interview: "Active conversations in progress",
+  trainee: "On probation — being evaluated",
+  hold: "Strong candidates · role full · recall when an opening returns",
+  hired: "Active employees on payroll",
+  rejected: "Removed from the pipeline",
 };
 
 const ROLE_PRESETS = [
@@ -65,6 +75,8 @@ type Candidate = {
   skills: string[] | null;
   next_action: string | null;
   trainee_salary_mmk: number | null;
+  hold_reason: string | null;
+  held_at: string | null;
 };
 
 const PAGE_SIZE = 25;
