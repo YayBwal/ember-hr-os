@@ -29,10 +29,10 @@ type SessionState = {
   report?: { subject?: string; category?: string };
 };
 
-let _sb: ReturnType<typeof createClient> | null = null;
+let _sb: ReturnType<typeof createClient<any, "public", any>> | null = null;
 function sb() {
   if (!_sb) {
-    _sb = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+    _sb = createClient<any, "public", any>(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
   }
   return _sb;
 }
