@@ -132,8 +132,7 @@ function Leaderboard() {
     },
   });
 
-  const period = new Date(); period.setUTCDate(1);
-  const periodKey = period.toISOString().slice(0, 10);
+  
   const latestKpi = (id: string) => kpis?.find((k) => k.employee_id === id && k.period_month.startsWith(periodKey.slice(0, 7)));
 
   const rows = useMemo(() => {
