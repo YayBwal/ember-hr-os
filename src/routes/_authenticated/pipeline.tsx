@@ -489,6 +489,24 @@ function PipelinePage() {
                       Promote → Hired
                     </button>
                   )}
+                  {c.status === "hold" && (
+                    <button
+                      onClick={() => recallMut.mutate({ ids: [c.id], to: "interview" })}
+                      className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                      title="Recall this candidate back to Interview"
+                    >
+                      ↺ Recall
+                    </button>
+                  )}
+                  {(c.status === "screening" || c.status === "interview" || c.status === "trainee") && (
+                    <button
+                      onClick={() => setHolding([c])}
+                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-amber-500/40 hover:text-amber-600"
+                      title="Place on hold (talent pool)"
+                    >
+                      <PauseCircle className="h-3 w-3" />
+                    </button>
+                  )}
                   {c.status !== "hired" && (
                     <button
                       onClick={() => reject([c.id])}
