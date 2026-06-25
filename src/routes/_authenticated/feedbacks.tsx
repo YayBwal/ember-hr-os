@@ -127,8 +127,8 @@ function DirectoryTab() {
     <div className="space-y-3">
       <div className="flex justify-between items-center">
         <div className="text-sm text-muted-foreground">{data.length} employees</div>
-        <Button onClick={openNew}><Plus className="h-4 w-4 mr-1" /> Add Employee</Button>
       </div>
+
       <div className="rounded-lg border overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-muted/50 text-left">
