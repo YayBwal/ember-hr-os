@@ -190,6 +190,53 @@ export type Database = {
           },
         ]
       }
+      employee_incident_reports: {
+        Row: {
+          category: string | null
+          created_at: string
+          description: string
+          id: string
+          org_id: string
+          reporter_department: string | null
+          status: string
+          subject_employee_code: string | null
+          subject_name: string | null
+          updated_at: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          org_id: string
+          reporter_department?: string | null
+          status?: string
+          subject_employee_code?: string | null
+          subject_name?: string | null
+          updated_at?: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          org_id?: string
+          reporter_department?: string | null
+          status?: string
+          subject_employee_code?: string | null
+          subject_name?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "employee_incident_reports_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       employee_kpis: {
         Row: {
           attendance: number
@@ -311,6 +358,7 @@ export type Database = {
           created_at: string
           department: Database["public"]["Enums"]["department"]
           email: string | null
+          employee_code: string | null
           employment_type: Database["public"]["Enums"]["employment_type"]
           full_name: string
           id: string
@@ -320,9 +368,11 @@ export type Database = {
           org_id: string
           performance_score: number
           phone: string | null
+          phone_number: string | null
           position: string
           salary_grade: string | null
           team_id: string | null
+          telegram_chat_id: number | null
           updated_at: string
           workload: number
         }
@@ -333,6 +383,7 @@ export type Database = {
           created_at?: string
           department: Database["public"]["Enums"]["department"]
           email?: string | null
+          employee_code?: string | null
           employment_type?: Database["public"]["Enums"]["employment_type"]
           full_name: string
           id?: string
@@ -342,9 +393,11 @@ export type Database = {
           org_id: string
           performance_score?: number
           phone?: string | null
+          phone_number?: string | null
           position: string
           salary_grade?: string | null
           team_id?: string | null
+          telegram_chat_id?: number | null
           updated_at?: string
           workload?: number
         }
@@ -355,6 +408,7 @@ export type Database = {
           created_at?: string
           department?: Database["public"]["Enums"]["department"]
           email?: string | null
+          employee_code?: string | null
           employment_type?: Database["public"]["Enums"]["employment_type"]
           full_name?: string
           id?: string
@@ -364,9 +418,11 @@ export type Database = {
           org_id?: string
           performance_score?: number
           phone?: string | null
+          phone_number?: string | null
           position?: string
           salary_grade?: string | null
           team_id?: string | null
+          telegram_chat_id?: number | null
           updated_at?: string
           workload?: number
         }
@@ -390,6 +446,51 @@ export type Database = {
             columns: ["team_id"]
             isOneToOne: false
             referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      feedback_responses: {
+        Row: {
+          department: string | null
+          id: string
+          question_id: string
+          rating_value: number | null
+          submitted_at: string
+          survey_id: string
+          text_comment: string | null
+        }
+        Insert: {
+          department?: string | null
+          id?: string
+          question_id: string
+          rating_value?: number | null
+          submitted_at?: string
+          survey_id: string
+          text_comment?: string | null
+        }
+        Update: {
+          department?: string | null
+          id?: string
+          question_id?: string
+          rating_value?: number | null
+          submitted_at?: string
+          survey_id?: string
+          text_comment?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "feedback_responses_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "survey_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "feedback_responses_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
             referencedColumns: ["id"]
           },
         ]
@@ -693,6 +794,85 @@ export type Database = {
           },
         ]
       }
+      survey_questions: {
+        Row: {
+          created_at: string
+          id: string
+          options: Json | null
+          question_text: string
+          question_type: string
+          sort_order: number
+          survey_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          options?: Json | null
+          question_text: string
+          question_type: string
+          sort_order?: number
+          survey_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          options?: Json | null
+          question_text?: string
+          question_type?: string
+          sort_order?: number
+          survey_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "survey_questions_survey_id_fkey"
+            columns: ["survey_id"]
+            isOneToOne: false
+            referencedRelation: "surveys"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      surveys: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          org_id: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          org_id: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          org_id?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "surveys_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_comments: {
         Row: {
           author_user_id: string | null
@@ -942,6 +1122,35 @@ export type Database = {
           },
           {
             foreignKeyName: "teams_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      telegram_sessions: {
+        Row: {
+          chat_id: number
+          org_id: string | null
+          state: Json
+          updated_at: string
+        }
+        Insert: {
+          chat_id: number
+          org_id?: string | null
+          state?: Json
+          updated_at?: string
+        }
+        Update: {
+          chat_id?: number
+          org_id?: string | null
+          state?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "telegram_sessions_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
