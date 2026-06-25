@@ -145,13 +145,23 @@ function PayrollTab() {
 
   return (
     <div>
-      <div className="flex items-start justify-between">
-        <p className="text-sm text-muted-foreground">Period {period.slice(0, 7)}. Total <span className="font-medium text-foreground">{formatMMKCompact(run?.total_mmk ?? 0)}</span>.</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs">Period</Label>
+            <Input type="month" value={periodInput} onChange={(e) => setPeriodInput(e.target.value)} className="h-9 w-[160px]" />
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Total <span className="font-medium text-foreground">{formatMMKCompact(run?.total_mmk ?? 0)}</span>.
+            Payroll is finalized only when you click <span className="font-medium text-foreground">Recompute</span>. Live KPI and attendance changes flow into KPI Calculation immediately.
+          </p>
+        </div>
         <Button onClick={() => runMut.mutate()} disabled={runMut.isPending}>
           {runMut.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
           Recompute payroll
         </Button>
       </div>
+
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-sm">
