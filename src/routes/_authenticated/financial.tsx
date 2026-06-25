@@ -108,7 +108,7 @@ function PayrollTab() {
       return (data ?? []) as Emp[];
     },
   });
-  const { data: run } = useQuery({
+  const { data: run, isLoading: runLoading } = useQuery({
     queryKey: ["payroll_runs", period],
     queryFn: async () => {
       const { data } = await supabase.from("payroll_runs").select("id,period_month,total_mmk,last_recomputed_at").eq("period_month", period).order("last_recomputed_at", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
