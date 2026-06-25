@@ -181,3 +181,161 @@ export const scoreManual = createServerFn({ method: "POST" })
       next_action: String(parsed.next_action ?? "Schedule initial screening"),
     };
   });
+
+// ===== Deep analysis & comparison =====
+
+export interface DeepAnalysis {
+  strengths: string[];
+  gaps: string[];
+  red_flags: string[];
+  role_fit_reasoning: string;
+  interview_questions: string[];
+  recommended_decision: string;
+}
+
+async function callJson(apiKey: string, prompt: string, model = "google/gemini-2.5-pro"): Promise<unknown> {
+  const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "Lovable-API-Key": apiKey },
+    body: JSON.stringify({
+      model,
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    if (res.status === 429) throw new Error("AI rate limit — please retry shortly");
+    if (res.status === 402) throw new Error("AI credits exhausted — add credits in workspace settings");
+    throw new Error(`AI failed (${res.status}): ${t.slice(0, 200)}`);
+  }
+  const j = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const text = j.choices?.[0]?.message?.content ?? "{}";
+  try { return JSON.parse(text); } catch {
+    const m = text.match(/\{[\s\S]*\}/);
+    return m ? JSON.parse(m[0]) : {};
+  }
+}
+
+export const analyzeCandidate = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => {
+    const o = data as { candidate_id?: string };
+    if (!o?.candidate_id) throw new Error("candidate_id required");
+    return { candidate_id: o.candidate_id };
+  })
+  .handler(async ({ data, context }): Promise<DeepAnalysis> => {
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = (context as any).supabase;
+    const { data: c, error } = await sb
+      .from("candidates")
+      .select("full_name, email, role_applied, skills, notes, ai_match_score")
+      .eq("id", data.candidate_id)
+      .maybeSingle();
+    if (error || !c) throw new Error(error?.message ?? "Candidate not found");
+
+    const prompt = `You are an expert technical recruiter. Analyze this candidate for the role "${c.role_applied}".
+
+Candidate: ${c.full_name}
+Email: ${c.email ?? "n/a"}
+Current AI match score: ${c.ai_match_score}%
+Skills: ${(c.skills ?? []).join(", ") || "none listed"}
+Notes / CV summary: ${c.notes ?? "none"}
+
+Return STRICT JSON (no markdown):
+{
+  "strengths": string[],            // 3-5 concrete strengths
+  "gaps": string[],                 // 2-4 honest gaps vs role
+  "red_flags": string[],            // 0-3 risk items, empty array if none
+  "role_fit_reasoning": string,     // 2-3 sentences on fit
+  "interview_questions": string[],  // 5 targeted interview questions
+  "recommended_decision": string    // "Advance to interview" | "Hire" | "Reject" | "Hold"
+}`;
+
+    const parsed = (await callJson(apiKey, prompt)) as Partial<DeepAnalysis>;
+    return {
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths.slice(0, 8).map(String) : [],
+      gaps: Array.isArray(parsed.gaps) ? parsed.gaps.slice(0, 8).map(String) : [],
+      red_flags: Array.isArray(parsed.red_flags) ? parsed.red_flags.slice(0, 8).map(String) : [],
+      role_fit_reasoning: String(parsed.role_fit_reasoning ?? ""),
+      interview_questions: Array.isArray(parsed.interview_questions)
+        ? parsed.interview_questions.slice(0, 8).map(String)
+        : [],
+      recommended_decision: String(parsed.recommended_decision ?? "Hold"),
+    };
+  });
+
+export interface ComparisonRow {
+  candidate_id: string;
+  full_name: string;
+  strengths: string[];
+  gaps: string[];
+  verdict: string;
+}
+export interface ComparisonResult {
+  summary: string;
+  rows: ComparisonRow[];
+  winner: string;
+}
+
+export const compareCandidates = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((data: unknown) => {
+    const o = data as { ids?: string[] };
+    if (!Array.isArray(o?.ids) || o.ids.length < 2 || o.ids.length > 4) {
+      throw new Error("Pick 2 to 4 candidates to compare");
+    }
+    return { ids: o.ids };
+  })
+  .handler(async ({ data, context }): Promise<ComparisonResult> => {
+    const apiKey = process.env.LOVABLE_API_KEY;
+    if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = (context as any).supabase;
+    const { data: cands, error } = await sb
+      .from("candidates")
+      .select("id, full_name, role_applied, skills, notes, ai_match_score")
+      .in("id", data.ids);
+    if (error || !cands || cands.length === 0) throw new Error(error?.message ?? "No candidates");
+
+    type Row = { id: string; full_name: string; role_applied: string; skills: string[] | null; notes: string | null; ai_match_score: number };
+    const list = cands as Row[];
+    const role = list[0].role_applied;
+
+    const prompt = `You are an expert technical recruiter. Compare these ${list.length} candidates head-to-head for the role "${role}".
+
+${list.map((c, i) => `Candidate ${i + 1}: ${c.full_name}
+  Match: ${c.ai_match_score}%
+  Skills: ${(c.skills ?? []).join(", ") || "none"}
+  Notes: ${c.notes ?? "none"}`).join("\n\n")}
+
+Return STRICT JSON (no markdown):
+{
+  "summary": string,                // 2-3 sentence overview of the comparison
+  "rows": [
+    { "candidate_id": "<full_name>", "strengths": string[], "gaps": string[], "verdict": string }
+  ],
+  "winner": string                  // full_name of the strongest candidate
+}
+Use the candidate's full_name as candidate_id.`;
+
+    const parsed = (await callJson(apiKey, prompt)) as Partial<ComparisonResult>;
+    const byName = new Map(list.map((c) => [c.full_name, c.id]));
+    const rows: ComparisonRow[] = Array.isArray(parsed.rows)
+      ? parsed.rows.map((r) => ({
+          candidate_id: byName.get(String(r.candidate_id)) ?? String(r.candidate_id),
+          full_name: String(r.candidate_id),
+          strengths: Array.isArray(r.strengths) ? r.strengths.slice(0, 6).map(String) : [],
+          gaps: Array.isArray(r.gaps) ? r.gaps.slice(0, 6).map(String) : [],
+          verdict: String(r.verdict ?? ""),
+        }))
+      : [];
+    return {
+      summary: String(parsed.summary ?? ""),
+      rows,
+      winner: String(parsed.winner ?? rows[0]?.full_name ?? ""),
+    };
+  });
+

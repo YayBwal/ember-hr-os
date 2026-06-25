@@ -30,8 +30,11 @@ import { toast } from "sonner";
 const VoiceAssistant = lazy(() =>
   import("@/components/voice-assistant").then((m) => ({ default: m.VoiceAssistant })),
 );
+const AiCopilot = lazy(() =>
+  import("@/components/ai-copilot").then((m) => ({ default: m.AiCopilot })),
+);
 
-function DeferredVoiceAssistant() {
+function DeferredAssistants() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
@@ -45,6 +48,7 @@ function DeferredVoiceAssistant() {
   return (
     <Suspense fallback={null}>
       <VoiceAssistant />
+      <AiCopilot />
     </Suspense>
   );
 }
@@ -140,7 +144,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
           org={org}
           onSignOut={signOut}
         />
-        <DeferredVoiceAssistant />
+        <DeferredAssistants />
       </div>
     );
   }
@@ -160,7 +164,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="flex-1 overflow-x-hidden">{children ?? <Outlet />}</main>
       </div>
-      <DeferredVoiceAssistant />
+      <DeferredAssistants />
     </div>
   );
 }

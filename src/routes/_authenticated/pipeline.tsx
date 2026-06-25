@@ -19,8 +19,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2 } from "lucide-react";
-import { parseCv, scoreManual } from "@/lib/pipeline.functions";
+import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare } from "lucide-react";
+import { parseCv, scoreManual, analyzeCandidate, compareCandidates, type DeepAnalysis, type ComparisonResult } from "@/lib/pipeline.functions";
 import { approveCandidate } from "@/lib/operations.functions";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
@@ -73,6 +73,8 @@ function PipelinePage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [approving, setApproving] = useState<Candidate | null>(null);
+  const [analyzeId, setAnalyzeId] = useState<Candidate | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
   const { q, stage: stageParam } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [searchInput, setSearchInput] = useState(q ?? "");
@@ -293,6 +295,16 @@ function PipelinePage() {
                   <ArrowRight className="h-3.5 w-3.5" /> Move to Trainee
                 </Button>
               )}
+              {selected.size >= 2 && selected.size <= 4 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCompareOpen(true)}
+                  className="gap-1.5"
+                >
+                  <GitCompare className="h-3.5 w-3.5" /> Compare ({selected.size})
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -378,6 +390,13 @@ function PipelinePage() {
                   {c.next_action ?? "—"}
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-1">
+                  <button
+                    onClick={() => setAnalyzeId(c)}
+                    className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-primary/40 hover:text-primary"
+                    title="AI deep analysis"
+                  >
+                    <Brain className="h-3 w-3" />
+                  </button>
                   {c.status === "screening" && (
                     <button
                       onClick={() => advanceOne(c)}
@@ -437,6 +456,13 @@ function PipelinePage() {
 
       <AddCandidateDialog open={open} onOpenChange={setOpen} />
       <ApproveDialog candidate={approving} defaultBase={approving?.trainee_salary_mmk ?? defaultTraineeSalary} onClose={() => setApproving(null)} />
+      <AnalyzeDialog candidate={analyzeId} onClose={() => setAnalyzeId(null)} />
+      <CompareDialog
+        open={compareOpen}
+        ids={Array.from(selected)}
+        candidates={all}
+        onClose={() => setCompareOpen(false)}
+      />
     </AppShell>
   );
 }
@@ -794,6 +820,172 @@ function ApproveDialog({ candidate, defaultBase, onClose }: { candidate: Candida
           <Button onClick={() => submit.mutate()} disabled={submit.isPending}>
             {submit.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm hire"}
           </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function AnalyzeDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+  const analyze = useServerFn(analyzeCandidate);
+  const [busy, setBusy] = useState(false);
+  const [data, setData] = useState<DeepAnalysis | null>(null);
+
+  useEffect(() => {
+    if (!candidate) { setData(null); return; }
+    setBusy(true);
+    setData(null);
+    analyze({ data: { candidate_id: candidate.id } })
+      .then((r) => setData(r))
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Analysis failed"))
+      .finally(() => setBusy(false));
+  }, [candidate, analyze]);
+
+  return (
+    <Dialog open={!!candidate} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" /> AI deep analysis
+          </DialogTitle>
+          <DialogDescription>
+            {candidate?.full_name} · {candidate?.role_applied} · {candidate?.ai_match_score}% match
+          </DialogDescription>
+        </DialogHeader>
+        {busy && (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Analyzing…
+          </div>
+        )}
+        {data && (
+          <div className="space-y-4 text-sm">
+            <div>
+              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Role fit</div>
+              <p>{data.role_fit_reasoning}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs font-mono uppercase tracking-wider text-emerald-600 mb-1">Strengths</div>
+                <ul className="space-y-1 text-xs list-disc pl-4">
+                  {data.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+              <div>
+                <div className="text-xs font-mono uppercase tracking-wider text-amber-600 mb-1">Gaps</div>
+                <ul className="space-y-1 text-xs list-disc pl-4">
+                  {data.gaps.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            </div>
+            {data.red_flags.length > 0 && (
+              <div>
+                <div className="text-xs font-mono uppercase tracking-wider text-destructive mb-1">Red flags</div>
+                <ul className="space-y-1 text-xs list-disc pl-4">
+                  {data.red_flags.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+            <div>
+              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Interview questions</div>
+              <ol className="space-y-1 text-xs list-decimal pl-4">
+                {data.interview_questions.map((s, i) => <li key={i}>{s}</li>)}
+              </ol>
+            </div>
+            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Recommended</div>
+              <div className="font-medium text-primary">{data.recommended_decision}</div>
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CompareDialog({
+  open,
+  ids,
+  candidates,
+  onClose,
+}: {
+  open: boolean;
+  ids: string[];
+  candidates: Candidate[];
+  onClose: () => void;
+}) {
+  const compare = useServerFn(compareCandidates);
+  const [busy, setBusy] = useState(false);
+  const [data, setData] = useState<ComparisonResult | null>(null);
+
+  useEffect(() => {
+    if (!open || ids.length < 2) { setData(null); return; }
+    setBusy(true);
+    setData(null);
+    compare({ data: { ids } })
+      .then((r) => setData(r))
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Compare failed"))
+      .finally(() => setBusy(false));
+  }, [open, ids, compare]);
+
+  const picked = candidates.filter((c) => ids.includes(c.id));
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitCompare className="h-4 w-4 text-primary" /> Candidate comparison
+          </DialogTitle>
+          <DialogDescription>
+            Comparing {picked.length} candidates for {picked[0]?.role_applied}
+          </DialogDescription>
+        </DialogHeader>
+        {busy && (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Comparing…
+          </div>
+        )}
+        {data && (
+          <div className="space-y-4">
+            <p className="text-sm">{data.summary}</p>
+            <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${data.rows.length}, minmax(0, 1fr))` }}>
+              {data.rows.map((row, i) => {
+                const isWinner = row.full_name === data.winner;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-lg border p-3 ${isWinner ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="font-medium text-sm truncate">{row.full_name}</div>
+                      {isWinner && <span className="text-[10px] font-mono uppercase text-primary">Top pick</span>}
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-[10px] font-mono uppercase text-emerald-600 mb-1">Strengths</div>
+                        <ul className="text-xs space-y-0.5 list-disc pl-3">
+                          {row.strengths.map((s, j) => <li key={j}>{s}</li>)}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-mono uppercase text-amber-600 mb-1">Gaps</div>
+                        <ul className="text-xs space-y-0.5 list-disc pl-3">
+                          {row.gaps.map((s, j) => <li key={j}>{s}</li>)}
+                        </ul>
+                      </div>
+                      <div className="pt-1 border-t border-border/40 text-xs text-muted-foreground">{row.verdict}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
