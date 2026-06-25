@@ -247,14 +247,14 @@ async function handleCvUpload(chatId: number, state: SessionState, doc: any) {
 
       await tgSendMessage(
         chatId,
-        `✅ <b>CV received for ${escapeHtml(role)}</b>\n\nMatch score: <b>${parsed.ai_match_score}%</b>\nWe'll be in touch — thanks for applying!`,
+        `✅ <b>CV received for ${escapeHtml(role)}</b>\n\nWe'll be in touch — thanks for applying!`,
         mainMenuKeyboard(),
       );
     } catch (e) {
       console.error("cv scoring failed", e);
       await tgSendMessage(
         chatId,
-        `✅ <b>CV received for ${escapeHtml(role)}</b>\n\nOur team will review it shortly. Thanks for applying!`,
+        `✅ <b>CV received for ${escapeHtml(role)}</b>\n\nWe'll be in touch — thanks for applying!`,
         mainMenuKeyboard(),
       );
     }
