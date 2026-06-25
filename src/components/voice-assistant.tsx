@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useRouter } from "@tanstack/react-router";
 import { GeminiLiveSession, type LiveStatus, type LiveEvent } from "@/lib/gemini-live-client";
 
-type Line = { id: string; who: "you" | "ai"; text: string };
+type Line = { id: string; who: "you" | "ai"; text: string; partial?: boolean };
 
 export function VoiceAssistant() {
   const [status, setStatus] = useState<LiveStatus>("idle");
@@ -13,15 +13,28 @@ export function VoiceAssistant() {
   const [lines, setLines] = useState<Line[]>([]);
   const [muted, setMuted] = useState(false);
   const sessionRef = useRef<GeminiLiveSession | null>(null);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [lines]);
 
   const handleEvent = useCallback(
     (e: LiveEvent) => {
       if (e.type === "status") setStatus(e.status);
-      else if (e.type === "user_text") {
-        setLines((p) => [...p, { id: crypto.randomUUID(), who: "you", text: e.text }]);
-      } else if (e.type === "ai_text") {
-        setLines((p) => [...p, { id: crypto.randomUUID(), who: "ai", text: e.text }]);
+      else if (e.type === "user_text" || e.type === "ai_text") {
+        const who: "you" | "ai" = e.type === "user_text" ? "you" : "ai";
+        setLines((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.who === who && last.partial) {
+            // Replace the streaming line in place.
+            const copy = prev.slice(0, -1);
+            return [...copy, { ...last, text: e.text, partial: e.partial }];
+          }
+          return [...prev, { id: crypto.randomUUID(), who, text: e.text, partial: e.partial }];
+        });
       } else if (e.type === "action") {
         if (e.action.type === "navigate") {
           try {
@@ -116,18 +129,30 @@ export function VoiceAssistant() {
               <X className="h-3 w-3" />
             </Button>
           </div>
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 text-sm">
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2 text-sm">
             {lines.length === 0 && (
               <p className="text-xs text-muted-foreground">
                 စကားပြောပါ — Speak (Burmese or English). Latency ~300ms.
               </p>
             )}
             {lines.map((l) => (
-              <div key={l.id} className={l.who === "ai" ? "text-foreground" : "text-muted-foreground"}>
-                <span className="text-[10px] font-mono uppercase tracking-[0.18em] mr-1">
+              <div
+                key={l.id}
+                className={`${l.who === "ai" ? "text-foreground" : "text-muted-foreground"} ${
+                  l.partial ? "opacity-70 italic" : ""
+                }`}
+              >
+                <span
+                  className={`text-[10px] font-mono uppercase tracking-[0.18em] mr-1 ${
+                    l.who === "ai" ? "text-primary" : "text-emerald-600 dark:text-emerald-400"
+                  }`}
+                >
                   {l.who === "ai" ? "AI" : "YOU"}
                 </span>
                 {l.text}
+                {l.partial && (
+                  <span className="ml-1 inline-block w-1 h-3 align-middle bg-current animate-pulse" />
+                )}
               </div>
             ))}
             {status === "thinking" && (
