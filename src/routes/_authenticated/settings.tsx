@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { useState, useEffect } from "react";
@@ -7,8 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
+import { useHasRole } from "@/hooks/use-user-roles";
+import { createTeamLeader, listTeamLeaders, deleteTeamLeader } from "@/lib/admin-users.functions";
+import { Crown, Trash2, UserPlus } from "lucide-react";
+
 
 export const Route = createFileRoute("/_authenticated/settings")({
   head: () => ({ meta: [{ title: "Settings · Mandai" }] }),
@@ -75,7 +81,130 @@ function SettingsPage() {
             </Button>
           </div>
         </div>
+
+        <TeamLeaderAdmin />
       </div>
     </AppShell>
   );
 }
+
+function TeamLeaderAdmin() {
+  const isAdmin = useHasRole("admin");
+  const qc = useQueryClient();
+  const listFn = useServerFn(listTeamLeaders);
+  const createFn = useServerFn(createTeamLeader);
+  const delFn = useServerFn(deleteTeamLeader);
+
+  const { data: leaders } = useQuery({
+    queryKey: ["admin", "team-leaders"],
+    enabled: isAdmin,
+    queryFn: () => listFn({ data: undefined as never }),
+  });
+
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [fullName, setFullName] = useState("");
+
+  const create = useMutation({
+    mutationFn: () => createFn({ data: { email, password, full_name: fullName } }),
+    onSuccess: () => {
+      toast.success("Team Leader account created. Share the credentials privately.");
+      setEmail(""); setPassword(""); setFullName(""); setOpen(false);
+      qc.invalidateQueries({ queryKey: ["admin", "team-leaders"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const remove = useMutation({
+    mutationFn: (user_id: string) => delFn({ data: { user_id } }),
+    onSuccess: () => {
+      toast.success("Team Leader removed");
+      qc.invalidateQueries({ queryKey: ["admin", "team-leaders"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  if (!isAdmin) return null;
+
+  return (
+    <div className="mt-8 max-w-3xl space-y-4 rounded-xl border border-border bg-card p-6">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Crown className="h-4 w-4 text-amber-500" />
+            <h2 className="font-display text-lg font-semibold tracking-tight">Team Leaders</h2>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Admins create Team Leader accounts. Share the email and password privately (e.g. via your team chat).
+            Team Leaders only see the Team Leader Hub when they sign in.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setOpen((v) => !v)}>
+          <UserPlus className="mr-1.5 h-4 w-4" /> {open ? "Cancel" : "New leader"}
+        </Button>
+      </div>
+
+      {open && (
+        <div className="grid gap-3 rounded-lg border border-dashed border-border p-4 sm:grid-cols-2">
+          <div className="space-y-1.5 sm:col-span-2">
+            <Label htmlFor="tl-name">Full name</Label>
+            <Input id="tl-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Aung Aung" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tl-email">Email</Label>
+            <Input id="tl-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="leader@example.com" />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="tl-pass">Temporary password</Label>
+            <Input id="tl-pass" type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="min 8 characters" />
+          </div>
+          <div className="sm:col-span-2 flex justify-end">
+            <Button
+              onClick={() => create.mutate()}
+              disabled={create.isPending || !email || password.length < 8 || !fullName.trim()}
+            >
+              Create account
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {(leaders ?? []).length === 0 && (
+          <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            No team leaders yet.
+          </div>
+        )}
+        {(leaders ?? []).map((l) => (
+          <div key={l.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <div className="flex min-w-0 items-center gap-3">
+              <Avatar className="h-9 w-9">
+                <AvatarFallback className="bg-amber-500/10 text-amber-600 text-xs">{initials(l.full_name ?? l.email ?? "?")}</AvatarFallback>
+              </Avatar>
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium">{l.full_name ?? "Unnamed"}</div>
+                <div className="truncate text-xs text-muted-foreground">{l.email ?? "—"}</div>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-[10px]">Team Leader</Badge>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="h-8 w-8 text-destructive hover:text-destructive"
+                onClick={() => {
+                  if (confirm(`Remove ${l.full_name ?? l.email}? This deletes their login.`)) remove.mutate(l.id);
+                }}
+                disabled={remove.isPending}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+

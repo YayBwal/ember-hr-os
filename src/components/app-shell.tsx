@@ -10,9 +10,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Building2,
-  UserCog,
-  Crown,
 } from "lucide-react";
+
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,21 +60,12 @@ const NAV = [
   { to: "/feedbacks", label: "Feedbacks", icon: MessageSquare },
 ] as const;
 
-const ROLES = ["HR", "Team Leader"] as const;
-type Role = (typeof ROLES)[number];
+import { useUserRoles } from "@/hooks/use-user-roles";
 
-function useRoleState(): [Role, (r: Role) => void] {
-  const [role, setRole] = useState<Role>("HR");
-  useEffect(() => {
-    const stored = typeof window !== "undefined" && window.localStorage.getItem("mandai-role");
-    if (stored && (ROLES as readonly string[]).includes(stored)) setRole(stored as Role);
-  }, []);
-  return [role, setRole];
-}
+type EffectiveRole = "HR" | "Team Leader";
 
 export function AppShell({ children }: { children?: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [role, setRole] = useRoleState();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -106,22 +96,24 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     },
   });
 
-  // Keep the route in sync with the selected role.
+  const { data: roles, isLoading: rolesLoading } = useUserRoles();
+  // Admin takes precedence — admins NEVER see the Team Leader Hub.
+  const isAdmin = (roles ?? []).includes("admin");
+  const isTeamLeader = (roles ?? []).includes("team_leader");
+  const role: EffectiveRole = isAdmin ? "HR" : isTeamLeader ? "Team Leader" : "HR";
+
+  // Enforce route access by role.
   useEffect(() => {
-    if (role === "Team Leader" && pathname !== "/team-leader" && !pathname.startsWith("/auth") && !pathname.startsWith("/settings")) {
-      navigate({ to: "/team-leader" });
-    } else if (role === "HR" && pathname === "/team-leader") {
+    if (rolesLoading) return;
+    if (pathname.startsWith("/auth")) return;
+    if (role === "Team Leader") {
+      if (pathname !== "/team-leader" && pathname !== "/settings") {
+        navigate({ to: "/team-leader" });
+      }
+    } else if (isAdmin && pathname === "/team-leader") {
       navigate({ to: "/operations" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, pathname]);
-
-  function changeRole(r: Role) {
-    setRole(r);
-    try { window.localStorage.setItem("mandai-role", r); } catch {}
-    if (r === "Team Leader") navigate({ to: "/team-leader" });
-    else navigate({ to: "/operations" });
-  }
+  }, [role, isAdmin, pathname, rolesLoading, navigate]);
 
   async function signOut() {
     await qc.cancelQueries();
@@ -138,7 +130,6 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
         <main className="min-h-screen">{children ?? <Outlet />}</main>
         <FloatingAccount
           role={role}
-          onRoleChange={changeRole}
           profile={profile}
           org={org}
           onSignOut={signOut}
@@ -148,14 +139,13 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     );
   }
 
-  // HR: sidebar only, no top nav bar.
+  // HR / Admin: sidebar only.
   return (
     <div className="flex min-h-screen w-full bg-background">
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
         role={role}
-        onRoleChange={changeRole}
         profile={profile}
         org={org}
         onSignOut={signOut}
@@ -168,19 +158,18 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
   );
 }
 
+
 function Sidebar({
   collapsed,
   onToggle,
   role,
-  onRoleChange,
   profile,
   org,
   onSignOut,
 }: {
   collapsed: boolean;
   onToggle: () => void;
-  role: Role;
-  onRoleChange: (r: Role) => void;
+  role: EffectiveRole;
   profile: Profile | null | undefined;
   org: Org | null | undefined;
   onSignOut: () => void;
@@ -234,28 +223,6 @@ function Sidebar({
       </nav>
 
       <div className="border-t border-sidebar-border p-2 space-y-1">
-        {!collapsed && (
-          <button
-            onClick={() => onRoleChange("Team Leader")}
-            className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            title="Switch to Team Leader view"
-          >
-            <Crown className="h-3.5 w-3.5 text-amber-500" />
-            <span>Switch to Team Leader</span>
-          </button>
-        )}
-        {collapsed && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onRoleChange("Team Leader")}
-            title="Switch to Team Leader"
-          >
-            <Crown className="h-4 w-4 text-amber-500" />
-          </Button>
-        )}
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-sidebar-accent">
@@ -267,7 +234,7 @@ function Sidebar({
               {!collapsed && (
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-medium">{profile?.full_name ?? "Account"}</div>
-                  <div className="truncate text-[10px] text-muted-foreground">{role}</div>
+                  <div className="truncate text-[10px] text-muted-foreground">Admin</div>
                 </div>
               )}
             </button>
@@ -275,16 +242,13 @@ function Sidebar({
           <DropdownMenuContent align="end" side="top" className="w-56">
             <DropdownMenuLabel>
               <div className="font-medium">{profile?.full_name ?? "Member"}</div>
-              <div className="text-xs text-muted-foreground">{org?.name}</div>
+              <div className="text-xs text-muted-foreground">{org?.name} · Admin</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link to="/settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" /> Settings
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onRoleChange(role === "HR" ? "Team Leader" : "HR")}>
-              <UserCog className="mr-2 h-4 w-4" /> Switch role
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <div className="px-2 py-1.5"><ThemeToggle /></div>
@@ -301,13 +265,11 @@ function Sidebar({
 
 function FloatingAccount({
   role,
-  onRoleChange,
   profile,
   org,
   onSignOut,
 }: {
-  role: Role;
-  onRoleChange: (r: Role) => void;
+  role: EffectiveRole;
   profile: Profile | null | undefined;
   org: Org | null | undefined;
   onSignOut: () => void;
@@ -331,8 +293,10 @@ function FloatingAccount({
             <div className="text-xs text-muted-foreground">{org?.name} · {role}</div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => onRoleChange("HR")}>
-            <UserCog className="mr-2 h-4 w-4" /> Switch to HR
+          <DropdownMenuItem asChild>
+            <Link to="/settings" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" /> Settings
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <div className="px-2 py-1.5"><ThemeToggle /></div>
@@ -345,3 +309,4 @@ function FloatingAccount({
     </div>
   );
 }
+
