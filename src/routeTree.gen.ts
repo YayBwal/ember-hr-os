@@ -14,7 +14,7 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ApiLivekitTokenRouteImport } from './routes/api/livekit-token'
-import { Route as ApiGeminiLiveRouteImport } from './routes/api/gemini-live'
+import { Route as ApiGeminiTokenRouteImport } from './routes/api/gemini-token'
 import { Route as AuthenticatedTeamLeaderRouteImport } from './routes/_authenticated/team-leader'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
@@ -46,9 +46,9 @@ const ApiLivekitTokenRoute = ApiLivekitTokenRouteImport.update({
   path: '/api/livekit-token',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiGeminiLiveRoute = ApiGeminiLiveRouteImport.update({
-  id: '/api/gemini-live',
-  path: '/api/gemini-live',
+const ApiGeminiTokenRoute = ApiGeminiTokenRouteImport.update({
+  id: '/api/gemini-token',
+  path: '/api/gemini-token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedTeamLeaderRoute = AuthenticatedTeamLeaderRouteImport.update({
@@ -91,7 +91,7 @@ export interface FileRoutesByFullPath {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team-leader': typeof AuthenticatedTeamLeaderRoute
-  '/api/gemini-live': typeof ApiGeminiLiveRoute
+  '/api/gemini-token': typeof ApiGeminiTokenRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
 }
@@ -104,7 +104,7 @@ export interface FileRoutesByTo {
   '/pipeline': typeof AuthenticatedPipelineRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/team-leader': typeof AuthenticatedTeamLeaderRoute
-  '/api/gemini-live': typeof ApiGeminiLiveRoute
+  '/api/gemini-token': typeof ApiGeminiTokenRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
 }
@@ -119,7 +119,7 @@ export interface FileRoutesById {
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/team-leader': typeof AuthenticatedTeamLeaderRoute
-  '/api/gemini-live': typeof ApiGeminiLiveRoute
+  '/api/gemini-token': typeof ApiGeminiTokenRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
 }
@@ -134,7 +134,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/team-leader'
-    | '/api/gemini-live'
+    | '/api/gemini-token'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
   fileRoutesByTo: FileRoutesByTo
@@ -147,7 +147,7 @@ export interface FileRouteTypes {
     | '/pipeline'
     | '/settings'
     | '/team-leader'
-    | '/api/gemini-live'
+    | '/api/gemini-token'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
   id:
@@ -161,7 +161,7 @@ export interface FileRouteTypes {
     | '/_authenticated/pipeline'
     | '/_authenticated/settings'
     | '/_authenticated/team-leader'
-    | '/api/gemini-live'
+    | '/api/gemini-token'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
   fileRoutesById: FileRoutesById
@@ -171,7 +171,7 @@ export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
-  ApiGeminiLiveRoute: typeof ApiGeminiLiveRoute
+  ApiGeminiTokenRoute: typeof ApiGeminiTokenRoute
   ApiLivekitTokenRoute: typeof ApiLivekitTokenRoute
   ApiPublicAgentToolsRoute: typeof ApiPublicAgentToolsRoute
 }
@@ -213,11 +213,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLivekitTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/gemini-live': {
-      id: '/api/gemini-live'
-      path: '/api/gemini-live'
-      fullPath: '/api/gemini-live'
-      preLoaderRoute: typeof ApiGeminiLiveRouteImport
+    '/api/gemini-token': {
+      id: '/api/gemini-token'
+      path: '/api/gemini-token'
+      fullPath: '/api/gemini-token'
+      preLoaderRoute: typeof ApiGeminiTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/team-leader': {
@@ -289,7 +289,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
-  ApiGeminiLiveRoute: ApiGeminiLiveRoute,
+  ApiGeminiTokenRoute: ApiGeminiTokenRoute,
   ApiLivekitTokenRoute: ApiLivekitTokenRoute,
   ApiPublicAgentToolsRoute: ApiPublicAgentToolsRoute,
 }

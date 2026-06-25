@@ -1,111 +1,107 @@
-# Phase 2 — Gemini Multimodal Live S2S Upgrade Plan
 
-## ⚠️ မစတင်ခင် သိထားရမယ့် အရေးကြီး အချက် ၂ ခု
+# Voice AI "Connecting…" Stuck Issue — Final Fix Plan
 
-### 1. မြန်မာစကား ပြန်ပြောနိုင်မလား?
+## ပြဿနာရဲ့ အမြစ်
 
-**တိုက်ရိုက်အဖြေ — အပြည့်အဝ မရပါ (ယခုလောလောဆယ်)**
+Network probe က ဒီ response ပြန်လာတယ်:
+```json
+{"ok":true,"hasGeminiKey":true,"hasSupabaseEnv":true,"hasWebSocketPair":false}
+```
 
-- Gemini Live API ရဲ့ **native audio output** က language ~24 ခုပဲ တရားဝင် support လုပ်ပါတယ် — အဲ့ထဲမှာ **မြန်မာစကား မပါသေး**ပါ။ (en, ja, ko, hi, id, vi, th, zh စတာတွေ ပါတယ်)
-- **Input (နားထောင်တာ)** ဘက်ကတော့ မြန်မာစကား **နားလည်နိုင်ပါတယ်** — Gemini က Burmese text/audio understanding ရှိပါတယ်။
-- ဒါကြောင့် Multimodal Live ကို တိုက်ရိုက်သုံးရင် —
-  - User က မြန်မာလို ပြောတာ → AI က နားလည်တယ် ✅
-  - AI က ပြန်ပြောတဲ့ အသံကတော့ **အင်္ဂလိပ်/တရုတ်/ထိုင်း လေသံနဲ့ မြန်မာစာ ဖတ်တာ** ဖြစ်လာနိုင်တယ် (ဆိုးတယ်) ❌
+`hasWebSocketPair:false` ဆိုတာ — **Lovable Cloud ရဲ့ TanStack Start server runtime က WebSocket server-side proxy ကို မထောက်ပံ့ဘူး**။ ဒါက ကျွန်တော်တို့ရဲ့ ယခုလက်ရှိ approach (browser → `/api/gemini-live` proxy → Gemini) ဟာ ဘယ်လိုပဲပြင်ပြင် အလုပ်လုပ်မှာမဟုတ်ဘူး။ Probe က ဒီ runtime မှာ WS infrastructure မရှိဘူးလို့ ဘောက်ပေးနေတယ်။
 
-**ဖြေရှင်းနည်း ၃ ခု (ရွေးခိုင်းပါမယ်):**
+ပြီးခဲ့တဲ့ turn မှာ probe check ကိုပဲ ပိတ်ထားလိုက်တဲ့အတွက် — UI က "Voice not available" မပြတော့ဘဲ၊ ဒါပေမယ့် WebSocket connection ကိုယ်တိုင်က server မှာ fail ဖြစ်နေတဲ့အတွက် browser က "connecting" မှာ ထိုင်နေတာ။
 
+## Solution: Browser-Direct + Ephemeral Token
 
-| Option                                                                       | Latency     | မြန်မာအသံ အရည်အသွေး          | Cost     |
-| ---------------------------------------------------------------------------- | ----------- | ---------------------------- | -------- |
-| **A. Pure S2S (Gemini Live native audio)**                                   | ~300ms      | ညံ့ (မြန်မာအသံ မရိုးသား)     | သက်သာ    |
-| **B. Hybrid — Live API audio-in + text-out → Burmese TTS**                   | ~700ms–1.2s | သင့်တင့် (လက်ရှိထက် တိုးတက်) | အလယ်အလတ် |
-| **C. လက်ရှိ cascade ထား၊ STT ကိုသာ Gemini audio understanding နဲ့ အစားထိုး** | ~2s         | လက်ရှိ TTS အတိုင်း           | သက်သာ    |
+**Proxy ဖျက်ပြီး၊ browser က Gemini ကို တိုက်ရိုက်ချိတ်တယ်။** Server က ephemeral token (1 မိနစ်တိုသော) ပဲ ထုတ်ပေးတယ်။ ဒါက Google ကိုယ်တိုင်က Live API client app တွေအတွက် ရည်ရွယ်ထားတဲ့ official pattern ပါ။
 
+```text
+လက်ရှိ (broken):
+  Browser ─[WS]→ /api/gemini-live (Lovable Cloud) ─[WS]→ Gemini Live
+                  ↑ WebSocketPair မထောက်ပံ့ → fail
 
-ကျွန်တော် အကြံပြုချင်တာက **Option B** — မြန်မာစကားအတွက် S2S ရဲ့ latency အကျိုးကျေးဇူး ၇၀% ရပြီး အသံအရည်အသွေး မပျက်ပါ။
+အသစ် (works):
+  Browser ─[HTTPS]→ /api/gemini-token (mint ephemeral) ─→ ✓
+  Browser ─[WSS]→ Gemini Live (ephemeral token နဲ့) ─→ ✓
+```
 
-### 2. Infrastructure ပြောင်းရမှု
+**ဘာကြောင့်အလုပ်လုပ်လဲ:**
+- TanStack server route က ephemeral token mint တာက ရိုးရိုး HTTPS POST တစ်ခုပဲ — WebSocketPair မလို
+- Browser က Gemini ကို တိုက်ရိုက် WSS ချိတ်တာက browser native WebSocket — Lovable runtime ကို လုံးဝ မဖြတ်တော့ဘူး
+- API key က server မှာ ဆက်လုံခြုံတယ် (token ပဲ browser ကို ပေးတယ်)
 
-လက်ရှိ voice ကို ကြည့်တော့ **LiveKit token endpoint ရှိပေမယ့် browser က LiveKit ကို သုံးမနေပါ** — `voice-assistant.tsx` က Web Speech API (browser STT) + `voiceChat` serverFn (Gemini text) + browser `speechSynthesis` (TTS) ပဲ ဖြစ်ပါတယ်။
+## ပြောင်းရမယ့်အရာများ
 
-Multimodal Live ကို LiveKit `MultimodalAgent` + `google.RealtimeModel` နဲ့ run ဖို့ဆိုရင် —
+### 1. Server: Token mint endpoint အသစ်
+**File:** `src/routes/api/gemini-token.ts` (`gemini-live.ts` ကို အစားထိုး)
 
-- **LiveKit Agent worker (Python သို့ Node)** ကို သီးခြား deploy လုပ်ရပါမယ်။
-- TanStack Start က Cloudflare Worker ပေါ်မှာ run နေတာမို့ Agent worker ကို **Worker ထဲမှာ run လို့ မရပါ** (long-lived process လိုတယ်)။
-- Fly.io / Render / Railway / Cloud Run ပေါ်မှာ container တစ်ခု သီးခြားလို ဖြစ်ပါမယ်။
+- Supabase user verify လုပ်
+- Google REST API `POST https://generativelanguage.googleapis.com/v1alpha/auth_tokens?key=<GEMINI_API_KEY>` ခေါ်
+- Body မှာ session config (model, voice, tools, system instruction) ထည့်
+- Ephemeral `name` (token string) ပြန်ပေး — expire = 60 seconds, session lock = 10 minutes
+- `gemini-live.ts` ဖျက်
 
-အကယ်၍ extra service မထည့်ချင်ဘူးဆိုရင် — **WebSocket တိုက်ရိုက် Gemini Live API နဲ့ ချိတ်တဲ့ နည်း** လည်း ရှိပါတယ် (LiveKit လုံးဝ မလို၊ ဒါပေမဲ့ interruption handling/VAD ကိုယ်တိုင် ရေးရတယ်)။
+### 2. Client: Direct WebSocket connection
+**File:** `src/lib/gemini-live-client.ts`
 
----
+- `/api/gemini-token` POST ခေါ်ပြီး ephemeral token ရယူ
+- `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=<token>` ကို တိုက်ရိုက်ချိတ်
+- Setup message၊ audio streaming၊ tool calls လုပ်ငန်းစဉ်အကုန် ယခုလို ဆက်လုပ်
+- Token mint တုန်း error ဆို မှန်ကန်စွာ surface လုပ်
 
-## ထို့ကြောင့် ပြန်လည် မေးချင်ပါတယ်
+### 3. UI: Diagnostic ပိုကောင်းအောင်
+**File:** `src/components/assistant-dock.tsx`
 
-ဆုံးဖြတ်ချက် ၂ ခု လိုပါတယ်:
+- "Connecting" အပ်ပြီး 8 seconds ထက်ကြာရင် "Connection timed out — retry" ပြ
+- Token mint failure (network/quota/key) သီးခြား error message ပြ
 
-**မေး ၁ — Voice output အရည်အသွေး vs latency:**
+### 4. Cleanup
+- `src/routes/api/gemini-live.ts` delete
+- `src/lib/dispatch-tool.functions.ts` အလုပ်ဆက်လုပ်တာ — ပြောင်းစရာမလို
+- Burmese system prompt၊ voice ("Aoede")၊ tools အကုန် ယခုလို ဆက်သုံး
 
-- **A.** Gemini Live native audio (~300ms၊ ဒါပေမဲ့ မြန်မာ accent ဆိုးနိုင်) (A သုံးမယ်)
-- **B.** Hybrid: Live audio-in + Burmese TTS out (~700ms၊ မြန်မာ accent ကောင်း) ← **အကြံပြု**
-- **C.** STT သာ upgrade၊ ကျန်တာ မပြောင်း
+## Technical Details
 
-**မေး ၂ — Infrastructure:**
+**Ephemeral token endpoint** (Google's official Live API auth pattern):
+```ts
+const res = await fetch(
+  `https://generativelanguage.googleapis.com/v1alpha/auth_tokens?key=${GEMINI_API_KEY}`,
+  { method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      expireTime: new Date(Date.now() + 60_000).toISOString(),
+      newSessionExpireTime: new Date(Date.now() + 60_000).toISOString(),
+      bidiGenerateContentSetup: { model, generationConfig, systemInstruction, tools },
+      uses: 1,
+    })
+  });
+const { name } = await res.json(); // ephemeral token
+```
 
-- **X.** LiveKit Agent worker အသစ် deploy (Fly.io/Render) — official, robust၊ ဒါပေမဲ့ service တစ်ခု ထပ်ထည့်ရ
-- **Y.** Browser ကနေ Gemini Live WebSocket တိုက်ရိုက်ခေါ် (server က ephemeral token ထုတ်ပေး) — service အသစ် မလို၊ feature နည်း
-- **Z.** TanStack server function ထဲက relay (Cloudflare Worker WebSocket) — middle ground
+**Browser WS** (no proxy):
+```ts
+const ws = new WebSocket(
+  `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${encodeURIComponent(name)}`
+);
+```
 
----
+**Security:**
+- `GEMINI_API_KEY` က server မှာပဲရှိ — browser ကို ဘယ်တုန်းကမှ မရောက်
+- Ephemeral token က 60 seconds အတွင်းပဲ မှန် — leak ဖြစ်ရင်လည်း တန်ဖိုးမရှိ
+- Token mint တိုင်း Supabase auth စစ်တယ် — sign-in မဝင်ထားတဲ့သူ မရ
 
-## အကြံပြုထားတဲ့ Plan (B + Y combo) 
+## အောင်မြင်ပြီးပါပြီလို့ ဘာနဲ့စစ်မလဲ
 
-ထောက်ခံချက် မရသေးခင် implementation မလုပ်ပါ။ Approve ပြီးမှ အောက်ပါအတိုင်း လုပ်ပါမယ်:
+1. Mic button နှိပ်တယ် → "Listening" status ပေါ်လာ (3 seconds အတွင်း)
+2. ဗမာစကားပြောတယ် → transcript text live ပေါ်လာ
+3. AI ပြန်ပြောတယ် → audio ထွက်လာ + transcript ပေါ်လာ
+4. "KPI ဘယ်လောက်လဲ" မေးတယ် → tool call run + ဖြေတယ်
+5. Console မှာ WebSocket 1006 closure မရှိ၊ probe error မရှိ
 
-### Step 1 — Server: Ephemeral token endpoint
+## အကျိုးကျေးဇူး
 
-`src/routes/api/gemini-live-token.ts` — auth-checked, short-lived Gemini Live API access token ထုတ်ပေး (LOVABLE_API_KEY ကို browser ကို မပေါ်စေဖို့)
-
-### Step 2 — Client: Live WebSocket session
-
-`src/lib/gemini-live-client.ts` — browser ထဲမှာ
-
-- `getUserMedia` → PCM 16kHz frames
-- WebSocket → `wss://generativelanguage.googleapis.com/.../BidiGenerateContent`
-- Audio-in streaming, **text-out** streaming (audio response မယူ)
-- Tool/function calling ကို existing `ai-tools.ts` ထဲက dispatcher နဲ့ ချိတ်
-- Interruption handling (server VAD signals)
-
-### Step 3 — Burmese TTS layer
-
-- AI response text ထွက်လာရင် **chunk-by-chunk** (sentence boundary) `speechSynthesis` ဒါမှမဟုတ် server-side `openai/gpt-4o-mini-tts` ကို stream
-- မြန်မာစာ ပါတဲ့အခါ browser native Burmese voice ကို prefer (လက်ရှိ logic ပြန်သုံး)
-
-### Step 4 — `voice-assistant.tsx` ပြန်ရေး
-
-- Web Speech API code ဖျက်
-- Mic button နှိပ်ရင် Gemini Live session ဖွင့်
-- Status: `connecting → listening → thinking → speaking` (interrupt-able)
-- Transcript panel က user/AI text ကို realtime ပြ
-
-### Step 5 — Fallback
-
-- Browser က WebSocket / Opus encoder မ support ရင် လက်ရှိ cascade pipeline ပြန် fallback
-
-### Step 6 — Cleanup
-
-- LiveKit token endpoint + `livekit-server-sdk` dependency ဖျက် (မသုံးတော့)
-
-### Out of scope
-
-- LiveKit Agent worker deployment (Option X ရွေးမှ)
-- Native audio output (Option A ရွေးမှ)
-- Multi-speaker / multi-room features
-
-### Risks
-
-- Cloudflare Worker က WebSocket relay လုပ်ဖို့ DurableObject သုံးရနိုင် — ဒါပေမဲ့ browser → Gemini direct ဖြစ်ရင် မလို
-- Gemini Live API quota/rate limit — error handling လို
-- Audio frame format mismatch (PCM 16-bit LE 16kHz) — encoding bug ဖြစ်တတ်တယ်
-
----
-
-**ဘယ် option ရွေးမလဲ ပြောပေးပါ (မေး ၁ + မေး ၂)၊ ပြီးရင် ဒီ plan ကို နောက်ဆုံး update လုပ်ပြီး implement လုပ်ပါမယ်။ A+Y combo သုံးကြည့်မယ် အဆင်မပြေရင် A+X combo**
+- ✅ **Works on Lovable Cloud** — WebSocketPair မလိုတော့ဘူး
+- ✅ **Lower latency** — middle hop ဖျက်လိုက်တာကြောင့် ~50-100ms ပိုမြန်
+- ✅ **Less code** — proxy route ~110 lines ဖျက်ပြီး token route ~40 lines နဲ့ အစားထိုး
+- ✅ **Google's recommended pattern** — production app တွေအတွက် official approach
+- ✅ **API key က server မှာပဲဆက်ရှိ** — security အတူတူ
