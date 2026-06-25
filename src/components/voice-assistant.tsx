@@ -18,10 +18,17 @@ export function VoiceAssistant() {
   const handleEvent = useCallback(
     (e: LiveEvent) => {
       if (e.type === "status") setStatus(e.status);
-      else if (e.type === "user_text") {
-        setLines((p) => [...p, { id: crypto.randomUUID(), who: "you", text: e.text }]);
-      } else if (e.type === "ai_text") {
-        setLines((p) => [...p, { id: crypto.randomUUID(), who: "ai", text: e.text }]);
+      else if (e.type === "user_text" || e.type === "ai_text") {
+        const who: "you" | "ai" = e.type === "user_text" ? "you" : "ai";
+        setLines((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.who === who && last.partial) {
+            // Replace the streaming line in place.
+            const copy = prev.slice(0, -1);
+            return [...copy, { ...last, text: e.text, partial: e.partial }];
+          }
+          return [...prev, { id: crypto.randomUUID(), who, text: e.text, partial: e.partial }];
+        });
       } else if (e.type === "action") {
         if (e.action.type === "navigate") {
           try {
