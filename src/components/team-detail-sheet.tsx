@@ -353,15 +353,17 @@ function ReportsTab({ team, allEmployees, isAdmin }: { team: Team; allEmployees:
               <div className="mt-2 space-y-1">
                 {rs.map((rt) => {
                   const emp = allEmployees.find((e) => e.id === rt.employee_id);
+                  const rating = Math.round(((rt.productivity ?? 0) + (rt.quality ?? 0)) / 2);
                   return (
                     <div key={rt.employee_id} className="flex items-center justify-between rounded border border-border/60 px-2 py-1 text-xs">
                       <span>{emp?.full_name ?? "?"}</span>
-                      <span className="font-mono">prod {rt.productivity} · qual {rt.quality}</span>
+                      <span className="font-mono">rating {rating}</span>
                     </div>
                   );
                 })}
               </div>
             )}
+
           </div>
         );
       })}
