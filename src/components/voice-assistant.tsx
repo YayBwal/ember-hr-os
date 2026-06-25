@@ -4,12 +4,9 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useServerFn } from "@tanstack/react-start";
 import { useRouter } from "@tanstack/react-router";
-import { useQueryClient } from "@tanstack/react-query";
 import { voiceChat } from "@/lib/voice.functions";
 
-type Action =
-  | { type: "navigate"; to: string }
-  | { type: "highlight_candidates"; ids: string[] };
+type Action = { type: "navigate"; to: string };
 
 type Status = "idle" | "listening" | "thinking" | "speaking" | "error";
 type Line = { id: string; who: "you" | "ai"; text: string };
@@ -34,7 +31,6 @@ export function VoiceAssistant() {
   const shouldListenRef = useRef(false);
   const chat = useServerFn(voiceChat);
   const router = useRouter();
-  const qc = useQueryClient();
   const [sttLang, setSttLang] = useState<"my-MM" | "en-US">("my-MM");
 
   const supported =
@@ -78,12 +74,10 @@ export function VoiceAssistant() {
           } catch (e) {
             console.warn("navigate failed", e);
           }
-        } else if (a.type === "highlight_candidates") {
-          qc.invalidateQueries({ queryKey: ["candidates"] });
         }
       }
     },
-    [router, qc],
+    [router],
   );
 
   const startListening = useCallback(() => {

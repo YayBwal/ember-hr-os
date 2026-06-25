@@ -21,7 +21,7 @@ type Kpis = {
 
 function DashboardPage() {
   const { data: kpis, isLoading } = useQuery({
-    queryKey: ["kpis"],
+    queryKey: ["dashboard-kpis"],
     queryFn: async (): Promise<Kpis> => {
       const [emp, tasks, payroll] = await Promise.all([
         supabase.from("employees").select("id, monthly_base_mmk, performance_score, attendance_pct"),

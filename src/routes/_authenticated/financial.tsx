@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -158,6 +158,7 @@ function PayrollTab() {
               <th className="px-4 py-3 text-right">KPI</th>
               <th className="px-4 py-3 text-right">KPI Bonus</th>
               <th className="px-4 py-3 text-right">Extra Bonus</th>
+              <th className="px-4 py-3 text-right">Overtime</th>
               <th className="px-4 py-3 text-right">Deductions</th>
               <th className="px-4 py-3 text-right">Final</th>
               <th className="px-4 py-3"></th>
@@ -181,6 +182,7 @@ function PayrollTab() {
                   </td>
                   <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.performance_bonus_mmk ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.bonus_mmk ?? 0)}</td>
+                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.overtime_mmk ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-destructive">-{formatMMKCompact(l?.deduction_mmk ?? 0)}</td>
                   <td className="px-4 py-3 text-right font-semibold">{formatMMK(l?.total_mmk ?? e.monthly_base_mmk)}</td>
                   <td className="px-4 py-3 text-right">
@@ -190,7 +192,7 @@ function PayrollTab() {
                 </tr>
               );
             })}
-            {(employees?.length ?? 0) === 0 && <tr><td colSpan={8} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees.</td></tr>}
+            {(employees?.length ?? 0) === 0 && <tr><td colSpan={9} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -416,13 +418,15 @@ function PromoteDialog({
 
   const [level, setLevel] = useState<EmployeeLevel>(nextLevel);
   const [salary, setSalary] = useState("");
+  const [position, setPosition] = useState("");
   const [kpiAdj, setKpiAdj] = useState(0);
   const [reason, setReason] = useState("");
 
-  useMemo(() => {
+  useEffect(() => {
     if (emp) {
       setLevel(nextLevel);
       setSalary(String(emp.monthly_base_mmk));
+      setPosition(emp.position);
       setKpiAdj(0);
       setReason("");
     }
@@ -456,14 +460,14 @@ function PromoteDialog({
   const band = bands?.[level];
   const salaryNum = Number(salary);
   const outOfBand = band && salaryNum > 0 && (salaryNum < band.min || salaryNum > band.max);
-  const canSave = reason.trim().length > 0 && salaryNum > 0 && !mut.isPending;
+  const canSave = reason.trim().length > 0 && salaryNum > 0 && position.trim().length > 0 && !mut.isPending;
 
   const save = () => {
     if (!canSave) return;
     mut.mutate({
       employeeId: emp.id,
       toLevel: level,
-      toPosition: emp.position,
+      toPosition: position.trim(),
       toBaseMmk: salaryNum,
       note: reason.trim(),
       kpiAdjustment: kpiAdj,
@@ -495,6 +499,11 @@ function PromoteDialog({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div>
+            <Label className="text-xs">Position <span className="text-destructive">*</span></Label>
+            <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="e.g. Senior Engineer" />
           </div>
 
           <div>

@@ -26,6 +26,7 @@ import {
   rateMember,
   submitPeerReview,
 } from "@/lib/teams.functions";
+import { renameTeam } from "@/lib/operations.functions";
 import { createTask, updateTask } from "@/lib/delivery.functions";
 
 type Team = { id: string; name: string; department: string; team_lead_employee_id: string | null; org_id: string };
@@ -54,6 +55,7 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
                 <Badge variant="outline" className="text-xs">{team.department}</Badge>
               </SheetTitle>
             </SheetHeader>
+            {isAdmin && <RenameTeamRow team={team} />}
             <Tabs defaultValue="members" className="mt-4">
               <TabsList>
                 <TabsTrigger value="members">Members</TabsTrigger>
@@ -70,6 +72,37 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function RenameTeamRow({ team }: { team: Team }) {
+  const qc = useQueryClient();
+  const rename = useServerFn(renameTeam);
+  const [name, setName] = useState(team.name);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!name.trim() || name.trim() === team.name) return;
+    setSaving(true);
+    try {
+      await rename({ data: { id: team.id, name: name.trim() } });
+      toast.success("Team renamed");
+      qc.invalidateQueries({ queryKey: ["teams"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="mt-3 flex items-end gap-2">
+      <div className="flex-1">
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Rename team</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8 text-xs" />
+      </div>
+      <Button size="sm" variant="outline" onClick={save} disabled={saving || !name.trim() || name.trim() === team.name}>
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+      </Button>
+    </div>
   );
 }
 

@@ -80,13 +80,3 @@ export const updateTask = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const addComment = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { taskId: string; body: string }) => d)
-  .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from("task_comments")
-      .insert({ task_id: data.taskId, author_user_id: context.userId, body: data.body });
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });
