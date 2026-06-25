@@ -397,7 +397,6 @@ function PromotionsTab() {
 }
 
 /* ---------------- Promote dialog ---------------- */
-import type { QueryClient } from "@tanstack/react-query";
 
 function PromoteDialog({
   emp, bands, onClose, qc, promote,
