@@ -11,11 +11,26 @@ export const Route = createFileRoute("/api/gemini-live")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        if (request.headers.get("upgrade")?.toLowerCase() !== "websocket") {
-          return new Response("expected websocket upgrade", { status: 400 });
+        const url = new URL(request.url);
+        const isUpgrade = request.headers.get("upgrade")?.toLowerCase() === "websocket";
+
+        // Non-upgrade probe: returns config + auth status as JSON so the client
+        // can show a precise error instead of a generic "Connection error".
+        if (!isUpgrade) {
+          const hasKey = !!process.env.GEMINI_API_KEY;
+          const hasSb = !!process.env.SUPABASE_URL && !!process.env.SUPABASE_PUBLISHABLE_KEY;
+          const hasPair = !!(globalThis as unknown as { WebSocketPair?: unknown }).WebSocketPair;
+          return new Response(
+            JSON.stringify({
+              ok: hasKey && hasSb && hasPair,
+              hasGeminiKey: hasKey,
+              hasSupabaseEnv: hasSb,
+              hasWebSocketPair: hasPair,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
         }
 
-        const url = new URL(request.url);
         const token = url.searchParams.get("token") ?? "";
         if (!token) return new Response("Unauthorized", { status: 401 });
 
