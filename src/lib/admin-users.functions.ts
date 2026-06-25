@@ -69,16 +69,16 @@ export const createTeamLeader = createServerFn({ method: "POST" })
       email,
       password: data.password,
       email_confirm: true,
-      user_metadata: { full_name, join_org_id: orgId },
+      user_metadata: { full_name, join_org_id: orgId, role: "team_leader" },
     });
     if (cErr || !created.user) throw new Error(cErr?.message ?? "Failed to create user");
     const newId = created.user.id;
 
-    // handle_new_user trigger inserts admin role + profile. Replace role with team_leader.
-    await supabaseAdmin.from("user_roles").delete().eq("user_id", newId);
+    // Belt-and-suspenders: strip any non-team_leader role, ensure team_leader exists.
+    await supabaseAdmin.from("user_roles").delete().eq("user_id", newId).neq("role", "team_leader");
     const { error: rErr } = await supabaseAdmin
       .from("user_roles")
-      .insert({ user_id: newId, role: "team_leader" });
+      .upsert({ user_id: newId, role: "team_leader" }, { onConflict: "user_id,role" });
     if (rErr) throw new Error(rErr.message);
     await supabaseAdmin.from("profiles").update({ org_id: orgId, full_name }).eq("id", newId);
 
