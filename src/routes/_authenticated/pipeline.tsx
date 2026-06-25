@@ -825,3 +825,169 @@ function ApproveDialog({ candidate, defaultBase, onClose }: { candidate: Candida
     </Dialog>
   );
 }
+
+function AnalyzeDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+  const analyze = useServerFn(analyzeCandidate);
+  const [busy, setBusy] = useState(false);
+  const [data, setData] = useState<DeepAnalysis | null>(null);
+
+  useEffect(() => {
+    if (!candidate) { setData(null); return; }
+    setBusy(true);
+    setData(null);
+    analyze({ data: { candidate_id: candidate.id } })
+      .then((r) => setData(r))
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Analysis failed"))
+      .finally(() => setBusy(false));
+  }, [candidate, analyze]);
+
+  return (
+    <Dialog open={!!candidate} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Brain className="h-4 w-4 text-primary" /> AI deep analysis
+          </DialogTitle>
+          <DialogDescription>
+            {candidate?.full_name} · {candidate?.role_applied} · {candidate?.ai_match_score}% match
+          </DialogDescription>
+        </DialogHeader>
+        {busy && (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Analyzing…
+          </div>
+        )}
+        {data && (
+          <div className="space-y-4 text-sm">
+            <div>
+              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Role fit</div>
+              <p>{data.role_fit_reasoning}</p>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="text-xs font-mono uppercase tracking-wider text-emerald-600 mb-1">Strengths</div>
+                <ul className="space-y-1 text-xs list-disc pl-4">
+                  {data.strengths.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+              <div>
+                <div className="text-xs font-mono uppercase tracking-wider text-amber-600 mb-1">Gaps</div>
+                <ul className="space-y-1 text-xs list-disc pl-4">
+                  {data.gaps.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            </div>
+            {data.red_flags.length > 0 && (
+              <div>
+                <div className="text-xs font-mono uppercase tracking-wider text-destructive mb-1">Red flags</div>
+                <ul className="space-y-1 text-xs list-disc pl-4">
+                  {data.red_flags.map((s, i) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+            <div>
+              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground mb-1">Interview questions</div>
+              <ol className="space-y-1 text-xs list-decimal pl-4">
+                {data.interview_questions.map((s, i) => <li key={i}>{s}</li>)}
+              </ol>
+            </div>
+            <div className="rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+              <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Recommended</div>
+              <div className="font-medium text-primary">{data.recommended_decision}</div>
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CompareDialog({
+  open,
+  ids,
+  candidates,
+  onClose,
+}: {
+  open: boolean;
+  ids: string[];
+  candidates: Candidate[];
+  onClose: () => void;
+}) {
+  const compare = useServerFn(compareCandidates);
+  const [busy, setBusy] = useState(false);
+  const [data, setData] = useState<ComparisonResult | null>(null);
+
+  useEffect(() => {
+    if (!open || ids.length < 2) { setData(null); return; }
+    setBusy(true);
+    setData(null);
+    compare({ data: { ids } })
+      .then((r) => setData(r))
+      .catch((e) => toast.error(e instanceof Error ? e.message : "Compare failed"))
+      .finally(() => setBusy(false));
+  }, [open, ids, compare]);
+
+  const picked = candidates.filter((c) => ids.includes(c.id));
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <GitCompare className="h-4 w-4 text-primary" /> Candidate comparison
+          </DialogTitle>
+          <DialogDescription>
+            Comparing {picked.length} candidates for {picked[0]?.role_applied}
+          </DialogDescription>
+        </DialogHeader>
+        {busy && (
+          <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Comparing…
+          </div>
+        )}
+        {data && (
+          <div className="space-y-4">
+            <p className="text-sm">{data.summary}</p>
+            <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${data.rows.length}, minmax(0, 1fr))` }}>
+              {data.rows.map((row, i) => {
+                const isWinner = row.full_name === data.winner;
+                return (
+                  <div
+                    key={i}
+                    className={`rounded-lg border p-3 ${isWinner ? "border-primary bg-primary/5" : "border-border"}`}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="font-medium text-sm truncate">{row.full_name}</div>
+                      {isWinner && <span className="text-[10px] font-mono uppercase text-primary">Top pick</span>}
+                    </div>
+                    <div className="space-y-2">
+                      <div>
+                        <div className="text-[10px] font-mono uppercase text-emerald-600 mb-1">Strengths</div>
+                        <ul className="text-xs space-y-0.5 list-disc pl-3">
+                          {row.strengths.map((s, j) => <li key={j}>{s}</li>)}
+                        </ul>
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-mono uppercase text-amber-600 mb-1">Gaps</div>
+                        <ul className="text-xs space-y-0.5 list-disc pl-3">
+                          {row.gaps.map((s, j) => <li key={j}>{s}</li>)}
+                        </ul>
+                      </div>
+                      <div className="pt-1 border-t border-border/40 text-xs text-muted-foreground">{row.verdict}</div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
