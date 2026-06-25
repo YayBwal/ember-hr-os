@@ -240,7 +240,8 @@ export async function dispatchTool(
         .order("total_mmk", { ascending: false })
         .limit(50);
       if (error) return { result: { ok: false, error: error.message } };
-      const rows = (lines ?? []).map((l: Record<string, unknown>) => {
+      type PayRow = { name: string; position: string | null; base_mmk: number; performance_bonus_mmk: number; bonus_mmk: number; deduction_mmk: number; total_mmk: number; kpi: number; tasks_completed: number };
+      const rows: PayRow[] = (lines ?? []).map((l: Record<string, unknown>) => {
         const emp = l.employees as { full_name?: string; position?: string } | null;
         return {
           name: emp?.full_name ?? "—",
@@ -257,7 +258,7 @@ export async function dispatchTool(
       const chart: ChartSpec = {
         type: "bar",
         title: `Payroll · ${period.slice(0, 7)}`,
-        data: rows.slice(0, 10).map((r) => ({ label: r.name, value: r.total_mmk })),
+        data: rows.slice(0, 10).map((r: PayRow) => ({ label: r.name, value: r.total_mmk })),
       };
       return {
         result: {
