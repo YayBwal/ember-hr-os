@@ -73,6 +73,8 @@ function PipelinePage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [approving, setApproving] = useState<Candidate | null>(null);
+  const [analyzeId, setAnalyzeId] = useState<Candidate | null>(null);
+  const [compareOpen, setCompareOpen] = useState(false);
   const { q, stage: stageParam } = Route.useSearch();
   const navigate = Route.useNavigate();
   const [searchInput, setSearchInput] = useState(q ?? "");
@@ -291,6 +293,16 @@ function PipelinePage() {
                   className="gap-1.5"
                 >
                   <ArrowRight className="h-3.5 w-3.5" /> Move to Trainee
+                </Button>
+              )}
+              {selected.size >= 2 && selected.size <= 4 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setCompareOpen(true)}
+                  className="gap-1.5"
+                >
+                  <GitCompare className="h-3.5 w-3.5" /> Compare ({selected.size})
                 </Button>
               )}
               <Button
