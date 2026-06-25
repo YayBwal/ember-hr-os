@@ -211,7 +211,7 @@ export class GeminiLiveSession {
       this.ws.send(
         JSON.stringify({
           realtimeInput: {
-            mediaChunks: [{ mimeType: "audio/pcm;rate=16000", data }],
+            audio: { mimeType: "audio/pcm;rate=16000", data },
           },
         }),
       );
