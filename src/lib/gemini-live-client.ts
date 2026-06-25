@@ -9,7 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ALL_TOOLS } from "@/lib/ai-tools";
 import { dispatchAiTool } from "@/lib/dispatch-tool.functions";
 
-const MODEL = "models/gemini-live-2.5-flash-preview";
+const MODEL = "models/gemini-3.1-flash-live-preview";
 const LIVE_WS_BASE =
   "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained";
 
