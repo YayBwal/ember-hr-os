@@ -270,17 +270,18 @@ function MemberRatingRow({
   locked: boolean;
   reportId: string | null;
   onNeedSave: () => Promise<string>;
-  onSubmitRating: (reportId: string, productivity: number, quality: number, note?: string) => Promise<void>;
+  onSubmitRating: (reportId: string, rating: number, note?: string) => Promise<void>;
 }) {
-  const [prod, setProd] = useState(initial?.productivity ?? 80);
-  const [qual, setQual] = useState(initial?.quality ?? 80);
+  // Existing ratings stored two columns (prod+quality); the average is the single TL rating.
+  const initialRating = initial ? Math.round((initial.productivity + initial.quality) / 2) : 80;
+  const [rating, setRating] = useState(initialRating);
   const [note, setNote] = useState(initial?.note ?? "");
   const [saving, setSaving] = useState(false);
   const save = async () => {
     setSaving(true);
     try {
       const id = reportId ?? (await onNeedSave());
-      await onSubmitRating(id, prod, qual, note || undefined);
+      await onSubmitRating(id, rating, note || undefined);
       toast.success(`${member.full_name} rated`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "failed";
@@ -291,16 +292,17 @@ function MemberRatingRow({
     <div className="rounded border border-border bg-background p-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarFallback className="text-[10px]">{initials(member.full_name)}</AvatarFallback></Avatar><span className="text-sm">{member.full_name}</span></div>
-        <span className="font-mono text-xs">P {prod} · Q {qual}</span>
+        <span className="font-mono text-xs">{rating}</span>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <div><Label className="text-[10px]">Productivity</Label><Slider value={[prod]} onValueChange={(v) => setProd(v[0])} min={0} max={100} step={5} disabled={locked} /></div>
-        <div><Label className="text-[10px]">Quality</Label><Slider value={[qual]} onValueChange={(v) => setQual(v[0])} min={0} max={100} step={5} disabled={locked} /></div>
+      <div className="mt-2">
+        <Label className="text-[10px]">Performance rating</Label>
+        <Slider value={[rating]} onValueChange={(v) => setRating(v[0])} min={0} max={100} step={5} disabled={locked} />
       </div>
       <div className="mt-2 flex gap-2">
-        <Input value={note} onChange={(e) => setNote(e.target.value)} disabled={locked} placeholder="Note" className="h-7 text-xs" />
+        <Input value={note} onChange={(e) => setNote(e.target.value)} disabled={locked} placeholder="Feedback note" className="h-7 text-xs" />
         {!locked && <Button size="sm" variant="secondary" onClick={save} disabled={saving}>{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</Button>}
       </div>
     </div>
   );
 }
+
