@@ -71,7 +71,7 @@ async function startSurvey(chatId: number, state: SessionState) {
     await setSession(chatId, state);
     return;
   }
-  const keyboard = surveys.map((s) => [{ text: s.title as string }]);
+  const keyboard = surveys.map((s: any) => [{ text: s.title as string }]);
   keyboard.push([{ text: "❌ Cancel" }]);
   state.step = "survey_pick";
   await setSession(chatId, state);
@@ -176,7 +176,7 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
   // Survey pick
   if (state.step === "survey_pick") {
     const { data: surveys } = await sb().from("surveys").select("id, title").eq("status", "active");
-    const picked = surveys?.find((s) => (s.title as string) === text);
+    const picked = surveys?.find((s: any) => (s.title as string) === text);
     if (!picked) return tgSendMessage(chatId, "Please tap one of the survey buttons.");
     const { data: qs } = await sb()
       .from("survey_questions")
@@ -185,7 +185,7 @@ async function handleMessage(update: { update_id: number; message?: { chat: { id
       .order("sort_order");
     state.step = "survey_answer";
     state.survey_id = picked.id as string;
-    state.question_ids = (qs ?? []).map((q) => q.id as string);
+    state.question_ids = (qs ?? []).map((q: any) => q.id as string);
     state.q_index = 0;
     await setSession(chatId, state);
     return askNextQuestion(chatId, state);
