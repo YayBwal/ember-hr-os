@@ -72,7 +72,7 @@ function FinancialPage() {
         <Tabs defaultValue="payroll" className="mt-6">
           <TabsList>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
-            <TabsTrigger value="promotions">Promotions</TabsTrigger>
+            <TabsTrigger value="promotions">Promotions &amp; Demotions</TabsTrigger>
             <TabsTrigger value="kpi">KPI Calculation</TabsTrigger>
           </TabsList>
           <TabsContent value="payroll" className="mt-4"><PayrollTab /></TabsContent>
