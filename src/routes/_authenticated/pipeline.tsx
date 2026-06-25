@@ -19,9 +19,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare, PauseCircle, Undo2, Send, Eye } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare, PauseCircle, Undo2, Send, Eye, MessageCircle } from "lucide-react";
 import { parseCv, scoreManual, analyzeCandidate, compareCandidates, type DeepAnalysis, type ComparisonResult } from "@/lib/pipeline.functions";
 import { getCvSignedUrl } from "@/lib/cv-intake.functions";
+import { notifyCandidate } from "@/lib/candidate-notify.functions";
 import { approveCandidate } from "@/lib/operations.functions";
 import { ROLE_PRESETS } from "@/lib/roles";
 
