@@ -4,6 +4,7 @@ import {
   Users,
   Workflow,
   Wallet,
+  MessageSquare,
   LogOut,
   Settings,
   ChevronsLeft,
