@@ -13,7 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Loader2, Plus, Minus, RefreshCw, TrendingUp, History } from "lucide-react";
+import { Loader2, Plus, Minus, RefreshCw, TrendingUp, History, Info } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { formatMMK, formatMMKCompact } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
 import { addBonus, addDeduction, runPayroll, promoteEmployee, type EmployeeLevel } from "@/lib/financial.functions";
@@ -110,7 +111,7 @@ function PayrollTab() {
   const { data: run } = useQuery({
     queryKey: ["payroll_runs", period],
     queryFn: async () => {
-      const { data } = await supabase.from("payroll_runs").select("id,period_month,total_mmk").eq("period_month", period).maybeSingle();
+      const { data } = await supabase.from("payroll_runs").select("id,period_month,total_mmk,last_recomputed_at").eq("period_month", period).maybeSingle();
       return data;
     },
   });
@@ -122,6 +123,14 @@ function PayrollTab() {
       return (data ?? []) as Line[];
     },
   });
+  const { data: overrides } = useQuery({
+    queryKey: ["kpi_overrides", period],
+    queryFn: async () => {
+      const { data } = await supabase.from("kpi_overrides").select("employee_id,bonus_override_mmk,note").eq("period_month", period);
+      return (data ?? []) as Array<{ employee_id: string; bonus_override_mmk: number | null; note: string | null }>;
+    },
+  });
+  const overrideFor = (id: string) => overrides?.find((o) => o.employee_id === id);
   const lineFor = (id: string) => lines?.find((l) => l.employee_id === id);
 
   const runMut = useMutation({
@@ -143,13 +152,21 @@ function PayrollTab() {
     } catch (e) { toast.error((e as Error).message); }
   };
 
+  const lastRecomputed = run?.last_recomputed_at ? new Date(run.last_recomputed_at as string) : null;
+
   return (
+    <TooltipProvider delayDuration={150}>
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
             <Label className="text-xs">Period</Label>
             <Input type="month" value={periodInput} onChange={(e) => setPeriodInput(e.target.value)} className="h-9 w-[160px]" />
+            {lastRecomputed && (
+              <Badge variant="outline" className="text-[10px] font-normal">
+                Last recomputed: {lastRecomputed.toLocaleString()}
+              </Badge>
+            )}
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Total <span className="font-medium text-foreground">{formatMMKCompact(run?.total_mmk ?? 0)}</span>.
@@ -162,6 +179,11 @@ function PayrollTab() {
         </Button>
       </div>
 
+      {!run && (
+        <div className="mt-4 rounded-xl border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+          Payroll has not been computed for this period. Click <span className="font-medium text-foreground">Recompute Payroll</span> to generate results.
+        </div>
+      )}
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
         <table className="w-full text-sm">
@@ -181,6 +203,12 @@ function PayrollTab() {
           <tbody>
             {(employees ?? []).map((e) => {
               const l = lineFor(e.id);
+              const ov = overrideFor(e.id);
+              const isOverride = ov?.bonus_override_mmk != null;
+              const tier = bonusTier(Number(l?.kpi_snapshot ?? 0));
+              const bonusTip = isOverride
+                ? `Manually adjusted by HR${ov?.note ? ` · ${ov.note}` : ""}`
+                : `Auto-generated from KPI tier (${tier})`;
               return (
                 <tr key={e.id} className="border-t border-border">
                   <td className="px-4 py-3">
@@ -192,9 +220,20 @@ function PayrollTab() {
                   </td>
                   <td className="px-4 py-3 text-right">{formatMMKCompact(l?.base_mmk ?? e.monthly_base_mmk)}</td>
                   <td className="px-4 py-3 text-right">
-                    <Badge variant="outline">{(l?.kpi_snapshot ?? 0).toFixed(1)} · {bonusTier(Number(l?.kpi_snapshot ?? 0))}</Badge>
+                    <Badge variant="outline">{(l?.kpi_snapshot ?? 0).toFixed(1)} · {tier}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.performance_bonus_mmk ?? 0)}</td>
+                  <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="inline-flex items-center gap-1 cursor-help">
+                          +{formatMMKCompact(l?.performance_bonus_mmk ?? 0)}
+                          <Info className="h-3 w-3 opacity-60" />
+                          {isOverride && <Badge variant="secondary" className="ml-1 text-[9px]">manual</Badge>}
+                        </span>
+                      </TooltipTrigger>
+                      <TooltipContent>{bonusTip}</TooltipContent>
+                    </Tooltip>
+                  </td>
                   <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.bonus_mmk ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-emerald-600 dark:text-emerald-400">+{formatMMKCompact(l?.overtime_mmk ?? 0)}</td>
                   <td className="px-4 py-3 text-right text-destructive">-{formatMMKCompact(l?.deduction_mmk ?? 0)}</td>
@@ -222,6 +261,7 @@ function PayrollTab() {
         </DialogContent>
       </Dialog>
     </div>
+    </TooltipProvider>
   );
 }
 
