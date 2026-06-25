@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
-import { Loader2, Plus, Minus, RefreshCw, TrendingUp, Sparkles, History } from "lucide-react";
+import { Loader2, Plus, Minus, RefreshCw, TrendingUp, History } from "lucide-react";
 import { formatMMK, formatMMKCompact } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
 import { addBonus, addDeduction, runPayroll, promoteEmployee, type EmployeeLevel } from "@/lib/financial.functions";
@@ -268,20 +267,6 @@ function PromotionsTab() {
     return { promotedThisQuarter, deltaThisMonth, avgTenure };
   }, [promotions, employees]);
 
-  // Suggested promotions: KPI >= 90 + not promoted in 180 days
-  const suggestions = useMemo(() => {
-    const cutoff = Date.now() - 180 * 86400000;
-    return (employees ?? []).filter((e) => {
-      if ((e.performance_score ?? 0) < 90) return false;
-      if (e.level === "lead") return false;
-      const last = lastPromotionFor(e.id);
-      // count "real" promotion (not the baseline hire row)
-      const realLast = historyFor(e.id).find((p) => p.from_level !== null);
-      const lastDate = realLast ? new Date(realLast.effective_date).getTime() : (e.join_date ? new Date(e.join_date).getTime() : 0);
-      return lastDate < cutoff || !last;
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employees, promotions]);
 
   return (
     <div>
@@ -301,24 +286,6 @@ function PromotionsTab() {
         </div>
       </div>
 
-      {/* Suggestions */}
-      {suggestions.length > 0 && (
-        <div className="mt-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
-          <div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="h-4 w-4 text-primary" /> Suggested promotions</div>
-          <p className="mt-1 text-xs text-muted-foreground">High KPI and overdue for a level bump.</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {suggestions.slice(0, 6).map((e) => (
-              <button
-                key={e.id}
-                onClick={() => setPromoting(e)}
-                className="rounded-full border border-border bg-card px-3 py-1 text-xs hover:bg-accent"
-              >
-                {e.full_name} · KPI {(e.performance_score ?? 0).toFixed(0)}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Employees table */}
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
@@ -423,21 +390,29 @@ function PromoteDialog({
   const [level, setLevel] = useState<EmployeeLevel>(nextLevel);
   const [salary, setSalary] = useState("");
   const [position, setPosition] = useState("");
-  const [kpiAdj, setKpiAdj] = useState(0);
   const [reason, setReason] = useState("");
+  const manuallyEdited = useRef(false);
 
   useEffect(() => {
     if (emp) {
       setLevel(nextLevel);
-      setSalary(String(emp.monthly_base_mmk));
       setPosition(emp.position);
-      setKpiAdj(0);
       setReason("");
+      manuallyEdited.current = false;
+      const bandMin = bands?.[nextLevel]?.min;
+      setSalary(String(bandMin && bandMin > 0 ? bandMin : emp.monthly_base_mmk));
     }
-  }, [emp, nextLevel]);
+  }, [emp, nextLevel, bands]);
+
+  // Auto-fill salary when level changes (unless user manually edited)
+  useEffect(() => {
+    if (!emp || manuallyEdited.current) return;
+    const bandMin = bands?.[level]?.min;
+    if (bandMin && bandMin > 0) setSalary(String(bandMin));
+  }, [level, bands, emp]);
 
   const mut = useMutation({
-    mutationFn: async (vars: { employeeId: string; toLevel: EmployeeLevel; toPosition: string; toBaseMmk: number; note: string; kpiAdjustment: number }) =>
+    mutationFn: async (vars: { employeeId: string; toLevel: EmployeeLevel; toPosition: string; toBaseMmk: number; note: string }) =>
       promote({ data: vars }),
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ["employees_fin"] });
@@ -463,8 +438,9 @@ function PromoteDialog({
   if (!emp) return null;
   const band = bands?.[level];
   const salaryNum = Number(salary);
-  const outOfBand = band && salaryNum > 0 && (salaryNum < band.min || salaryNum > band.max);
-  const canSave = reason.trim().length > 0 && salaryNum > 0 && position.trim().length > 0 && !mut.isPending;
+  const belowMin = !!band && salaryNum > 0 && salaryNum < band.min;
+  const aboveMax = !!band && salaryNum > band.max;
+  const canSave = reason.trim().length > 0 && salaryNum > 0 && position.trim().length > 0 && !belowMin && !mut.isPending;
 
   const save = () => {
     if (!canSave) return;
@@ -474,7 +450,6 @@ function PromoteDialog({
       toPosition: position.trim(),
       toBaseMmk: salaryNum,
       note: reason.trim(),
-      kpiAdjustment: kpiAdj,
     });
   };
 
@@ -496,7 +471,7 @@ function PromoteDialog({
                 <button
                   key={l}
                   type="button"
-                  onClick={() => setLevel(l)}
+                  onClick={() => { manuallyEdited.current = false; setLevel(l); }}
                   className={`rounded px-2 py-1.5 text-xs font-medium transition ${level === l ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {LEVEL_LABEL[l]}
@@ -512,32 +487,18 @@ function PromoteDialog({
 
           <div>
             <Label className="text-xs">Salary (MMK)</Label>
-            <Input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} />
+            <Input
+              type="number"
+              value={salary}
+              onChange={(e) => { manuallyEdited.current = true; setSalary(e.target.value); }}
+            />
             {band && (
-              <div className={`mt-1 text-xs ${outOfBand ? "text-destructive" : "text-muted-foreground"}`}>
-                Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}{outOfBand && " · outside band"}
+              <div className={`mt-1 text-xs ${belowMin ? "text-destructive" : "text-muted-foreground"}`}>
+                {belowMin
+                  ? `Below ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`
+                  : <>Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}{aboveMax && " · above max"}</>}
               </div>
             )}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">KPI adjustment</Label>
-              <Badge variant={kpiAdj === 0 ? "outline" : kpiAdj > 0 ? "default" : "destructive"}>
-                {kpiAdj > 0 ? "+" : ""}{kpiAdj}
-              </Badge>
-            </div>
-            <Slider
-              className="mt-2"
-              min={-50}
-              max={50}
-              step={1}
-              value={[kpiAdj]}
-              onValueChange={(v) => setKpiAdj(v[0] ?? 0)}
-            />
-            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-              <span>−50</span><span>0</span><span>+50</span>
-            </div>
           </div>
 
           <div>
@@ -546,7 +507,7 @@ function PromoteDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
-              placeholder="Justification for this promotion / adjustment"
+              placeholder="Justification for this promotion"
             />
           </div>
         </div>

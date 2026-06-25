@@ -1352,30 +1352,17 @@ export type Database = {
         }
         Returns: boolean
       }
-      promote_employee:
-        | {
-            Args: {
-              _effective_date?: string
-              _employee_id: string
-              _note?: string
-              _to_base_mmk: number
-              _to_level: Database["public"]["Enums"]["employee_level"]
-              _to_position: string
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              _effective_date?: string
-              _employee_id: string
-              _kpi_adjustment?: number
-              _note?: string
-              _to_base_mmk: number
-              _to_level: Database["public"]["Enums"]["employee_level"]
-              _to_position: string
-            }
-            Returns: string
-          }
+      promote_employee: {
+        Args: {
+          _effective_date?: string
+          _employee_id: string
+          _note?: string
+          _to_base_mmk: number
+          _to_level: Database["public"]["Enums"]["employee_level"]
+          _to_position: string
+        }
+        Returns: string
+      }
       recompute_employee_kpi: {
         Args: { _employee_id: string; _period: string }
         Returns: undefined
