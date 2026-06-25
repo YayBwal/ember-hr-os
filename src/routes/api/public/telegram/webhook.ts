@@ -216,6 +216,35 @@ async function handleCvUpload(chatId: number, state: SessionState, doc: any) {
         storage_path: storagePath,
         role,
       });
+
+      // Duplicate-email guard: prevent spamming applications from the same Gmail
+      if (parsed.email) {
+        const normalizedEmail = parsed.email.trim().toLowerCase();
+        const { data: dupes } = await sb()
+          .from("candidates")
+          .select("id, role_applied, created_at, status")
+          .ilike("email", normalizedEmail)
+          .neq("id", created.id as string)
+          .order("created_at", { ascending: false });
+        const others = dupes ?? [];
+        if (others.length > 0) {
+          // Remove the new duplicate row and uploaded CV
+          await sb().from("candidates").delete().eq("id", created.id as string);
+          await sb().storage.from("candidate-cvs").remove([storagePath]).catch(() => {});
+
+          const sameRole = others.find((o) => (o.role_applied ?? "") === role);
+          const tooMany = others.length >= 3;
+          const msg = tooMany
+            ? `⚠️ <b>Too many applications</b>\n\nWe've received <b>${others.length}</b> applications from <code>${escapeHtml(parsed.email)}</code> already. Please wait for our team to review them before applying again.`
+            : sameRole
+              ? `ℹ️ You've already applied for <b>${escapeHtml(role)}</b> with <code>${escapeHtml(parsed.email)}</code>. Your previous application is still on file — no need to re-apply.`
+              : `ℹ️ We already have an application from <code>${escapeHtml(parsed.email)}</code> on file. To avoid duplicates we kept your earlier one. Reach out to HR if you'd like to switch positions.`;
+          await tgSendMessage(chatId, msg, mainMenuKeyboard());
+          await setSession(chatId, { step: "menu", apply_role: undefined });
+          return;
+        }
+      }
+
       await tgSendMessage(
         chatId,
         `✅ <b>CV received for ${escapeHtml(role)}</b>\n\nMatch score: <b>${parsed.ai_match_score}%</b>\nWe'll be in touch — thanks for applying!`,
@@ -229,6 +258,7 @@ async function handleCvUpload(chatId: number, state: SessionState, doc: any) {
         mainMenuKeyboard(),
       );
     }
+
 
     await setSession(chatId, { step: "menu", apply_role: undefined });
   } catch (e) {
