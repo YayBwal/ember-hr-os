@@ -50,7 +50,7 @@ type SortKey = "kpi" | "attendance";
 function OperationsPage() {
   useRealtimeInvalidate(
     ["employees", "tasks", "attendance", "employee_kpis", "teams", "team_members"],
-    ["employees", "teams", "team_members", "employee-kpis", "task_counts"],
+    ["employees", "teams", "team_members", "employee-kpis", "task_counts_active"],
   );
 
   return (
