@@ -114,8 +114,12 @@ export const parseCv = createServerFn({ method: "POST" })
       const errText = await res.text().catch(() => "");
       if (res.status === 429) throw new Error("AI rate limit — please retry in a moment");
       if (res.status === 402) throw new Error("AI credits exhausted — add credits in workspace settings");
-      throw new Error(`CV parse failed (${res.status}): ${errText.slice(0, 200)}`);
+      if (/document has no pages|could not be processed|unsupported|invalid.*pdf/i.test(errText)) {
+        throw new Error("This PDF couldn't be read (it may be scanned, image-only, or password-protected). Please upload a text-based PDF or a .txt file.");
+      }
+      throw new Error(`CV parse failed (${res.status}): ${errText.slice(0, 300)}`);
     }
+
 
     const json = (await res.json()) as {
       choices?: { message?: { content?: string } }[];
