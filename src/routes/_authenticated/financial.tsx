@@ -45,8 +45,8 @@ type Org = {
   salary_bands: Record<EmployeeLevel, { min: number; max: number }> | null;
 };
 
-const LEVELS: EmployeeLevel[] = ["junior", "mid", "senior", "lead"];
-const LEVEL_LABEL: Record<EmployeeLevel, string> = { junior: "Junior", mid: "Mid", senior: "Senior", lead: "Lead" };
+const LEVELS: EmployeeLevel[] = ["trainee", "junior", "senior", "lead"];
+const LEVEL_LABEL: Record<EmployeeLevel, string> = { trainee: "Trainee", junior: "Junior", mid: "Junior", senior: "Senior", lead: "Lead" };
 
 function bonusTier(kpi: number): string {
   if (kpi >= 95) return "20%"; if (kpi >= 90) return "15%"; if (kpi >= 85) return "10%"; if (kpi >= 80) return "5%"; return "0%";
