@@ -15,7 +15,7 @@ const tools = [
         properties: {
           route: {
             type: "string",
-            enum: ["/dashboard", "/pipeline", "/operations", "/team-leader", "/financial", "/settings"],
+            enum: ["/pipeline", "/operations", "/team-leader", "/financial", "/settings"],
           },
         },
         required: ["route"],
