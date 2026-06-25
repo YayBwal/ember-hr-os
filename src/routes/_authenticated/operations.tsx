@@ -58,11 +58,11 @@ function OperationsPage() {
       <div className="px-4 py-6 md:px-8">
         <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Operations</div>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Workforce</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Leaderboard, teams and meetings — live data.</p>
+        <p className="mt-1 text-sm text-muted-foreground">Employees, teams and meetings — live data.</p>
 
         <Tabs defaultValue="leaderboard" className="mt-6">
           <TabsList>
-            <TabsTrigger value="leaderboard"><Trophy className="mr-2 h-4 w-4" />Leaderboard</TabsTrigger>
+            <TabsTrigger value="leaderboard"><Trophy className="mr-2 h-4 w-4" />Employee</TabsTrigger>
             <TabsTrigger value="teams"><Users className="mr-2 h-4 w-4" />Teams</TabsTrigger>
           </TabsList>
           <TabsContent value="leaderboard" className="mt-4"><Leaderboard /></TabsContent>
