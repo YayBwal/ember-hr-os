@@ -70,12 +70,6 @@ function Nav() {
         </nav>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <Link
-            to="/auth"
-            className="inline-flex h-9 items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition-all hover:bg-primary/90"
-          >
-            Enter Workspace <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
         </div>
       </div>
     </header>
