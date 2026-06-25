@@ -187,6 +187,39 @@ function PipelinePage() {
     update.mutate({ ids, status: "rejected" });
   }
 
+  const holdMut = useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      const { error } = await supabase
+        .from("candidates")
+        .update({ status: "hold", hold_reason: reason, held_at: new Date().toISOString() })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`Placed ${vars.ids.length} on hold`);
+      setSelected(new Set());
+      setHolding(null);
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const recallMut = useMutation({
+    mutationFn: async ({ ids, to }: { ids: string[]; to: Stage }) => {
+      const { error } = await supabase
+        .from("candidates")
+        .update({ status: to, hold_reason: null, held_at: null })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`Recalled ${vars.ids.length} → ${STAGE_LABELS[vars.to]}`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   function setStage(s: Stage) {
     navigate({ search: (prev: any) => ({ ...prev, stage: s }), replace: true });
   }
