@@ -1176,3 +1176,92 @@ function CompareDialog({
     </Dialog>
   );
 }
+
+const NOTIFY_TEMPLATES: { label: string; body: (c: { full_name: string; role_applied: string }) => string }[] = [
+  {
+    label: "Invite to interview",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, thanks for applying for ${c.role_applied}. We'd like to invite you to an interview. Please reply with a few time slots that work for you.`,
+  },
+  {
+    label: "You're hired 🎉",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, congratulations! We'd like to offer you the ${c.role_applied} position at Mandai. Our HR team will reach out shortly with next steps.`,
+  },
+  {
+    label: "On hold / talent pool",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, thanks for applying for ${c.role_applied}. The role is currently filled, but we'd like to keep your profile in our talent pool and reach out when something fits.`,
+  },
+  {
+    label: "Not selected",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, thanks for applying for ${c.role_applied}. After review we won't be moving forward this time. We wish you the best and encourage you to apply again in the future.`,
+  },
+];
+
+function NotifyDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+  const notify = useServerFn(notifyCandidate);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (candidate) setMessage(NOTIFY_TEMPLATES[0].body(candidate));
+    else setMessage("");
+  }, [candidate]);
+
+  async function send() {
+    if (!candidate || !message.trim()) return;
+    setBusy(true);
+    try {
+      await notify({ data: { candidate_id: candidate.id, message } });
+      toast.success(`Message sent to ${candidate.full_name}`);
+      onClose();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!candidate} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>Notify {candidate?.full_name}</DialogTitle>
+          <DialogDescription>
+            Sends a Telegram message directly to the candidate. Pick a template or write your own.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {NOTIFY_TEMPLATES.map((t) => (
+              <Button
+                key={t.label}
+                size="sm"
+                variant="outline"
+                onClick={() => candidate && setMessage(t.body(candidate))}
+                disabled={busy}
+              >
+                {t.label}
+              </Button>
+            ))}
+          </div>
+          <Textarea
+            rows={6}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type your message…"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={send} disabled={busy || !message.trim()} className="gap-2">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Send via Telegram
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
