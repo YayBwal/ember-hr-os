@@ -56,6 +56,16 @@ export const parseCv = createServerFn({ method: "POST" })
 
     const userPrompt = PARSE_PROMPT.replace("{ROLE}", data.role);
 
+    // Strip any accidental data URL prefix the client may have left on the base64 payload.
+    const cleanBase64 = data.fileBase64.replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
+    if (cleanBase64.length < 100) {
+      throw new Error("Uploaded file is empty or unreadable");
+    }
+    // ~20 MB base64 cap — Gemini rejects very large inline files.
+    if (cleanBase64.length > 20 * 1024 * 1024) {
+      throw new Error("File too large — please upload a CV under 15 MB");
+    }
+
     // Gemini's file input only reliably supports PDFs and a few image/audio types.
     // DOCX/DOC are not accepted — ask the user to convert. TXT can be inlined as text.
     let content: unknown[];
@@ -66,14 +76,14 @@ export const parseCv = createServerFn({ method: "POST" })
           type: "file",
           file: {
             filename: data.filename,
-            file_data: `data:application/pdf;base64,${data.fileBase64}`,
+            file_data: `data:application/pdf;base64,${cleanBase64}`,
           },
         },
       ];
     } else if (data.mime === "text/plain") {
       let decoded = "";
       try {
-        decoded = Buffer.from(data.fileBase64, "base64").toString("utf-8");
+        decoded = Buffer.from(cleanBase64, "base64").toString("utf-8");
       } catch {
         throw new Error("Could not read text file");
       }
@@ -83,6 +93,7 @@ export const parseCv = createServerFn({ method: "POST" })
     } else {
       throw new Error("Unsupported file type — please upload a PDF or TXT (convert DOCX to PDF first)");
     }
+
 
     const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
