@@ -18,6 +18,7 @@ import { Loader2, Plus, Minus, RefreshCw, TrendingUp, Sparkles, History } from "
 import { formatMMK, formatMMKCompact } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
 import { addBonus, addDeduction, runPayroll, promoteEmployee, type EmployeeLevel } from "@/lib/financial.functions";
+import { getKpiDashboard, setEmploymentType, type KpiRow } from "@/lib/kpi.functions";
 
 export const Route = createFileRoute("/_authenticated/financial")({
   head: () => ({ meta: [{ title: "Financial · Mandai" }] }),
