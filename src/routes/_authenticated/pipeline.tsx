@@ -74,6 +74,7 @@ function PipelinePage() {
   const [approving, setApproving] = useState<Candidate | null>(null);
   const [holding, setHolding] = useState<Candidate[] | null>(null);
   const [analyzeId, setAnalyzeId] = useState<Candidate | null>(null);
+  const [notifying, setNotifying] = useState<Candidate | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const { q, stage: stageParam } = Route.useSearch();
   const navigate = Route.useNavigate();
