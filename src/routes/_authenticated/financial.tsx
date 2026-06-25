@@ -391,21 +391,29 @@ function PromoteDialog({
   const [level, setLevel] = useState<EmployeeLevel>(nextLevel);
   const [salary, setSalary] = useState("");
   const [position, setPosition] = useState("");
-  const [kpiAdj, setKpiAdj] = useState(0);
   const [reason, setReason] = useState("");
+  const manuallyEdited = useRef(false);
 
   useEffect(() => {
     if (emp) {
       setLevel(nextLevel);
-      setSalary(String(emp.monthly_base_mmk));
       setPosition(emp.position);
-      setKpiAdj(0);
       setReason("");
+      manuallyEdited.current = false;
+      const bandMin = bands?.[nextLevel]?.min;
+      setSalary(String(bandMin && bandMin > 0 ? bandMin : emp.monthly_base_mmk));
     }
-  }, [emp, nextLevel]);
+  }, [emp, nextLevel, bands]);
+
+  // Auto-fill salary when level changes (unless user manually edited)
+  useEffect(() => {
+    if (!emp || manuallyEdited.current) return;
+    const bandMin = bands?.[level]?.min;
+    if (bandMin && bandMin > 0) setSalary(String(bandMin));
+  }, [level, bands, emp]);
 
   const mut = useMutation({
-    mutationFn: async (vars: { employeeId: string; toLevel: EmployeeLevel; toPosition: string; toBaseMmk: number; note: string; kpiAdjustment: number }) =>
+    mutationFn: async (vars: { employeeId: string; toLevel: EmployeeLevel; toPosition: string; toBaseMmk: number; note: string }) =>
       promote({ data: vars }),
     onMutate: async (vars) => {
       await qc.cancelQueries({ queryKey: ["employees_fin"] });
@@ -431,8 +439,9 @@ function PromoteDialog({
   if (!emp) return null;
   const band = bands?.[level];
   const salaryNum = Number(salary);
-  const outOfBand = band && salaryNum > 0 && (salaryNum < band.min || salaryNum > band.max);
-  const canSave = reason.trim().length > 0 && salaryNum > 0 && position.trim().length > 0 && !mut.isPending;
+  const belowMin = !!band && salaryNum > 0 && salaryNum < band.min;
+  const aboveMax = !!band && salaryNum > band.max;
+  const canSave = reason.trim().length > 0 && salaryNum > 0 && position.trim().length > 0 && !belowMin && !mut.isPending;
 
   const save = () => {
     if (!canSave) return;
@@ -442,7 +451,6 @@ function PromoteDialog({
       toPosition: position.trim(),
       toBaseMmk: salaryNum,
       note: reason.trim(),
-      kpiAdjustment: kpiAdj,
     });
   };
 
@@ -464,7 +472,7 @@ function PromoteDialog({
                 <button
                   key={l}
                   type="button"
-                  onClick={() => setLevel(l)}
+                  onClick={() => { manuallyEdited.current = false; setLevel(l); }}
                   className={`rounded px-2 py-1.5 text-xs font-medium transition ${level === l ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
                 >
                   {LEVEL_LABEL[l]}
@@ -480,32 +488,18 @@ function PromoteDialog({
 
           <div>
             <Label className="text-xs">Salary (MMK)</Label>
-            <Input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} />
+            <Input
+              type="number"
+              value={salary}
+              onChange={(e) => { manuallyEdited.current = true; setSalary(e.target.value); }}
+            />
             {band && (
-              <div className={`mt-1 text-xs ${outOfBand ? "text-destructive" : "text-muted-foreground"}`}>
-                Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}{outOfBand && " · outside band"}
+              <div className={`mt-1 text-xs ${belowMin ? "text-destructive" : "text-muted-foreground"}`}>
+                {belowMin
+                  ? `Below ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`
+                  : <>Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}{aboveMax && " · above max"}</>}
               </div>
             )}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between">
-              <Label className="text-xs">KPI adjustment</Label>
-              <Badge variant={kpiAdj === 0 ? "outline" : kpiAdj > 0 ? "default" : "destructive"}>
-                {kpiAdj > 0 ? "+" : ""}{kpiAdj}
-              </Badge>
-            </div>
-            <Slider
-              className="mt-2"
-              min={-50}
-              max={50}
-              step={1}
-              value={[kpiAdj]}
-              onValueChange={(v) => setKpiAdj(v[0] ?? 0)}
-            />
-            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
-              <span>−50</span><span>0</span><span>+50</span>
-            </div>
           </div>
 
           <div>
@@ -514,7 +508,7 @@ function PromoteDialog({
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
-              placeholder="Justification for this promotion / adjustment"
+              placeholder="Justification for this promotion"
             />
           </div>
         </div>
