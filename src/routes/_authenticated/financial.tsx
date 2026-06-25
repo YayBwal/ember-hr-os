@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
