@@ -143,7 +143,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
           org={org}
           onSignOut={signOut}
         />
-        <VoiceAssistant />
+        <DeferredVoiceAssistant />
       </div>
     );
   }
