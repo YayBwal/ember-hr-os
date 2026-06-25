@@ -117,24 +117,9 @@ function Leaderboard() {
     },
   });
 
-  // Pending peer reviews this month: distinct (team_id, reviewer) pairs missing.
   const period = new Date(); period.setUTCDate(1);
   const periodKey = period.toISOString().slice(0, 10);
-  const { data: pendingReviews } = useQuery({
-    queryKey: ["pending_peer_reviews", periodKey],
-    queryFn: async () => {
-      const [{ data: tm }, { data: pr }] = await Promise.all([
-        supabase.from("team_members").select("team_id, employee_id"),
-        supabase.from("peer_reviews").select("team_id, reviewer_employee_id").eq("period_month", periodKey),
-      ]);
-      const submitted = new Set((pr ?? []).map((r) => `${r.team_id}:${r.reviewer_employee_id}`));
-      let pending = 0;
-      for (const m of tm ?? []) if (!submitted.has(`${m.team_id}:${m.employee_id}`)) pending++;
-      return pending;
-    },
-  });
 
-  
   const latestKpi = (id: string) => kpis?.find((k) => k.employee_id === id && k.period_month.startsWith(periodKey.slice(0, 7)));
 
   const rows = useMemo(() => {
@@ -144,7 +129,7 @@ function Leaderboard() {
       return {
         emp: e,
         kpi: Number(k?.kpi ?? e.performance_score ?? 0),
-        productivity: Number(k?.productivity ?? 80),
+        taskCompletion: Number(k?.task_completion ?? 0),
         attendance: Number(k?.attendance ?? e.attendance_pct ?? 0),
         completed: counts.completed,
         active: counts.active,
@@ -152,7 +137,6 @@ function Leaderboard() {
     });
     const cmp: Record<SortKey, (a: typeof list[number], b: typeof list[number]) => number> = {
       kpi: (a, b) => b.kpi - a.kpi,
-      productivity: (a, b) => b.productivity - a.productivity,
       attendance: (a, b) => b.attendance - a.attendance,
       completed: (a, b) => b.completed - a.completed,
     };
@@ -160,6 +144,7 @@ function Leaderboard() {
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees, kpis, taskCounts, sortBy]);
+
 
   const teamName = (id: string | null) => teams?.find((t) => t.id === id)?.name ?? "—";
 
