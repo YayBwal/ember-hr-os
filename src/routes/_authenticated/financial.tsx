@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Fragment, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Slider } from "@/components/ui/slider";
 import { toast } from "sonner";
 import { Loader2, Plus, Minus, RefreshCw, TrendingUp, Sparkles, History } from "lucide-react";
 import { formatMMK, formatMMKCompact } from "@/lib/format";
@@ -45,8 +46,8 @@ type Org = {
   salary_bands: Record<EmployeeLevel, { min: number; max: number }> | null;
 };
 
-const LEVELS: EmployeeLevel[] = ["junior", "mid", "senior", "lead"];
-const LEVEL_LABEL: Record<EmployeeLevel, string> = { junior: "Junior", mid: "Mid", senior: "Senior", lead: "Lead" };
+const LEVELS: EmployeeLevel[] = ["trainee", "junior", "senior", "lead"];
+const LEVEL_LABEL: Record<EmployeeLevel, string> = { trainee: "Trainee", junior: "Junior", mid: "Junior", senior: "Senior", lead: "Lead" };
 
 function bonusTier(kpi: number): string {
   if (kpi >= 95) return "20%"; if (kpi >= 90) return "15%"; if (kpi >= 85) return "10%"; if (kpi >= 80) return "5%"; return "0%";
@@ -388,11 +389,7 @@ function PromotionsTab() {
         emp={promoting}
         bands={org?.salary_bands ?? null}
         onClose={() => setPromoting(null)}
-        onSaved={() => {
-          qc.invalidateQueries({ queryKey: ["employees_fin"] });
-          qc.invalidateQueries({ queryKey: ["promotions"] });
-          qc.invalidateQueries({ queryKey: ["payroll_lines"] });
-        }}
+        qc={qc}
         promote={promoteFn}
       />
     </div>
@@ -400,111 +397,150 @@ function PromotionsTab() {
 }
 
 /* ---------------- Promote dialog ---------------- */
+
 function PromoteDialog({
-  emp, bands, onClose, onSaved, promote,
+  emp, bands, onClose, qc, promote,
 }: {
   emp: Emp | null;
   bands: Record<EmployeeLevel, { min: number; max: number }> | null;
   onClose: () => void;
-  onSaved: () => void;
+  qc: QueryClient;
   promote: ReturnType<typeof useServerFn<typeof promoteEmployee>>;
 }) {
   const nextLevel: EmployeeLevel = useMemo(() => {
-    if (!emp) return "mid";
-    const idx = LEVELS.indexOf(emp.level);
-    return LEVELS[Math.min(idx + 1, LEVELS.length - 1)];
+    if (!emp) return "junior";
+    const current = emp.level === "mid" ? "junior" : emp.level;
+    const idx = LEVELS.indexOf(current as EmployeeLevel);
+    return LEVELS[Math.min(Math.max(idx, 0) + 1, LEVELS.length - 1)];
   }, [emp]);
 
   const [level, setLevel] = useState<EmployeeLevel>(nextLevel);
-  const [position, setPosition] = useState("");
   const [salary, setSalary] = useState("");
-  const [effective, setEffective] = useState(() => new Date().toISOString().slice(0, 10));
-  const [note, setNote] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [kpiAdj, setKpiAdj] = useState(0);
+  const [reason, setReason] = useState("");
 
-  // reset when emp changes
   useMemo(() => {
     if (emp) {
       setLevel(nextLevel);
-      setPosition(emp.position);
-      const band = bands?.[nextLevel];
-      setSalary(String(band?.min ?? emp.monthly_base_mmk));
-      setNote("");
+      setSalary(String(emp.monthly_base_mmk));
+      setKpiAdj(0);
+      setReason("");
     }
-  }, [emp, nextLevel, bands]);
+  }, [emp, nextLevel]);
+
+  const mut = useMutation({
+    mutationFn: async (vars: { employeeId: string; toLevel: EmployeeLevel; toPosition: string; toBaseMmk: number; note: string; kpiAdjustment: number }) =>
+      promote({ data: vars }),
+    onMutate: async (vars) => {
+      await qc.cancelQueries({ queryKey: ["employees_fin"] });
+      const prevEmps = qc.getQueryData<Emp[]>(["employees_fin"]);
+      qc.setQueryData<Emp[]>(["employees_fin"], (old) =>
+        (old ?? []).map((e) => e.id === vars.employeeId ? { ...e, level: vars.toLevel, monthly_base_mmk: vars.toBaseMmk } : e),
+      );
+      return { prevEmps };
+    },
+    onError: (e: Error, _v, ctx) => {
+      if (ctx?.prevEmps) qc.setQueryData(["employees_fin"], ctx.prevEmps);
+      toast.error(e.message);
+    },
+    onSuccess: () => { toast.success("Promotion saved"); onClose(); },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ["employees_fin"] });
+      qc.invalidateQueries({ queryKey: ["promotions"] });
+      qc.invalidateQueries({ queryKey: ["payroll_lines"] });
+      qc.invalidateQueries({ queryKey: ["payroll_runs"] });
+    },
+  });
 
   if (!emp) return null;
   const band = bands?.[level];
   const salaryNum = Number(salary);
   const outOfBand = band && salaryNum > 0 && (salaryNum < band.min || salaryNum > band.max);
+  const canSave = reason.trim().length > 0 && salaryNum > 0 && !mut.isPending;
 
-  const save = async () => {
-    if (!position.trim()) { toast.error("Position required"); return; }
-    if (!salaryNum || salaryNum <= 0) { toast.error("Salary required"); return; }
-    setSaving(true);
-    try {
-      await promote({ data: {
-        employeeId: emp.id, toLevel: level, toPosition: position.trim(),
-        toBaseMmk: salaryNum, effectiveDate: effective, note: note || undefined,
-      }});
-      toast.success(`${emp.full_name} promoted to ${LEVEL_LABEL[level]}`);
-      onSaved(); onClose();
-    } catch (e) { toast.error((e as Error).message); }
-    finally { setSaving(false); }
+  const save = () => {
+    if (!canSave) return;
+    mut.mutate({
+      employeeId: emp.id,
+      toLevel: level,
+      toPosition: emp.position,
+      toBaseMmk: salaryNum,
+      note: reason.trim(),
+      kpiAdjustment: kpiAdj,
+    });
   };
 
   return (
     <Dialog open={!!emp} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Promote {emp.full_name}</DialogTitle>
         </DialogHeader>
-        <div className="space-y-3">
-          <div className="text-xs text-muted-foreground">
-            Currently <Badge variant="secondary">{LEVEL_LABEL[emp.level]}</Badge> · {emp.position} · {formatMMK(emp.monthly_base_mmk)}
+        <div className="space-y-4">
+          <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+            Current <Badge variant="secondary" className="mx-1">{LEVEL_LABEL[emp.level]}</Badge> · {emp.position} · <span className="font-medium text-foreground">{formatMMK(emp.monthly_base_mmk)}</span>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>New level</Label>
-              <Select value={level} onValueChange={(v) => {
-                const lv = v as EmployeeLevel;
-                setLevel(lv);
-                const b = bands?.[lv]; if (b) setSalary(String(b.min));
-              }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {LEVELS.map((l) => <SelectItem key={l} value={l}>{LEVEL_LABEL[l]}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Effective date</Label>
-              <Input type="date" value={effective} onChange={(e) => setEffective(e.target.value)} />
+
+          <div>
+            <Label className="text-xs">Level</Label>
+            <div className="mt-1 grid grid-cols-4 gap-1 rounded-md border border-border bg-muted/30 p-1">
+              {LEVELS.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLevel(l)}
+                  className={`rounded px-2 py-1.5 text-xs font-medium transition ${level === l ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+                >
+                  {LEVEL_LABEL[l]}
+                </button>
+              ))}
             </div>
           </div>
+
           <div>
-            <Label>New position</Label>
-            <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="e.g. Senior Engineer" />
-          </div>
-          <div>
-            <Label>New monthly salary (MMK)</Label>
+            <Label className="text-xs">Salary (MMK)</Label>
             <Input type="number" value={salary} onChange={(e) => setSalary(e.target.value)} />
             {band && (
               <div className={`mt-1 text-xs ${outOfBand ? "text-destructive" : "text-muted-foreground"}`}>
-                Band for {LEVEL_LABEL[level]}: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}
-                {outOfBand && " · outside band"}
+                Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}{outOfBand && " · outside band"}
               </div>
             )}
           </div>
+
           <div>
-            <Label>Note (optional)</Label>
-            <Textarea value={note} onChange={(e) => setNote(e.target.value)} rows={2} />
+            <div className="flex items-center justify-between">
+              <Label className="text-xs">KPI adjustment</Label>
+              <Badge variant={kpiAdj === 0 ? "outline" : kpiAdj > 0 ? "default" : "destructive"}>
+                {kpiAdj > 0 ? "+" : ""}{kpiAdj}
+              </Badge>
+            </div>
+            <Slider
+              className="mt-2"
+              min={-50}
+              max={50}
+              step={1}
+              value={[kpiAdj]}
+              onValueChange={(v) => setKpiAdj(v[0] ?? 0)}
+            />
+            <div className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+              <span>−50</span><span>0</span><span>+50</span>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs">Reason <span className="text-destructive">*</span></Label>
+            <Textarea
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              rows={2}
+              placeholder="Justification for this promotion / adjustment"
+            />
           </div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>
-            {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save promotion
+          <Button onClick={save} disabled={!canSave}>
+            {mut.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Save
           </Button>
         </DialogFooter>
       </DialogContent>
