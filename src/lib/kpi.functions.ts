@@ -65,7 +65,7 @@ export const setKpiEligibility = createServerFn({ method: "POST" })
     const { error } = await context.supabase.rpc("set_kpi_eligibility", {
       _employee_id: data.employeeId,
       _period_month: data.periodMonth,
-      _eligible: data.eligible,
+      _eligible: data.eligible as boolean,
     });
     if (error) throw new Error(error.message);
     return { ok: true };
