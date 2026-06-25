@@ -159,6 +159,7 @@ export const parseCv = createServerFn({ method: "POST" })
       ai_match_score: Math.max(0, Math.min(100, Math.round(Number(parsed.ai_match_score ?? 0)))),
       summary: String(parsed.summary ?? ""),
       next_action: String(parsed.next_action ?? "Schedule initial screening"),
+      cv_storage_path,
     };
   });
 
