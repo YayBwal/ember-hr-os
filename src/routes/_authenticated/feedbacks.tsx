@@ -81,6 +81,17 @@ function DirectoryTab() {
   const upsertFn = useServerFn(upsertEmployeeDirectory);
   const qc = useQueryClient();
   const { data = [] } = useQuery({ queryKey: ["feedback-employees"], queryFn: () => listFn() });
+
+  useEffect(() => {
+    const ch = supabase
+      .channel("employees-telegram-link")
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "employees" }, () => {
+        qc.invalidateQueries({ queryKey: ["feedback-employees"] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [qc]);
+
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ full_name: "", department: "Engineering", employee_code: "", phone_number: "", position: "Staff" });
