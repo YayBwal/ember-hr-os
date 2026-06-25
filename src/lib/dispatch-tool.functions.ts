@@ -13,6 +13,7 @@ export const dispatchAiTool = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const out = await dispatchTool(data.name, data.args, context.supabase as any);
-    // Re-serialize through JSON so the result is plain-serializable for the RPC boundary.
-    return JSON.parse(JSON.stringify(out)) as { result: unknown; action?: unknown; chart?: unknown };
+    // Re-serialize so the RPC boundary sees a plain JSON object (not `unknown`).
+    const json: string = JSON.stringify(out);
+    return { json };
   });
