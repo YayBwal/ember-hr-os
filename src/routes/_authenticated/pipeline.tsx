@@ -390,6 +390,13 @@ function PipelinePage() {
                   {c.next_action ?? "—"}
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-1">
+                  <button
+                    onClick={() => setAnalyzeId(c)}
+                    className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-primary/40 hover:text-primary"
+                    title="AI deep analysis"
+                  >
+                    <Brain className="h-3 w-3" />
+                  </button>
                   {c.status === "screening" && (
                     <button
                       onClick={() => advanceOne(c)}
@@ -449,6 +456,13 @@ function PipelinePage() {
 
       <AddCandidateDialog open={open} onOpenChange={setOpen} />
       <ApproveDialog candidate={approving} defaultBase={approving?.trainee_salary_mmk ?? defaultTraineeSalary} onClose={() => setApproving(null)} />
+      <AnalyzeDialog candidate={analyzeId} onClose={() => setAnalyzeId(null)} />
+      <CompareDialog
+        open={compareOpen}
+        ids={Array.from(selected)}
+        candidates={all}
+        onClose={() => setCompareOpen(false)}
+      />
     </AppShell>
   );
 }
