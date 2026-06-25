@@ -19,8 +19,13 @@ export type KpiRow = {
   days_absent: number;
   working_hours: number;
   kpi_score: number;
-  bonus_eligible: boolean;
-  bonus_amount_mmk: number;
+  system_eligible: boolean;
+  eligible_override: boolean | null;
+  final_eligible: boolean;
+  system_bonus_mmk: number;
+  bonus_override_mmk: number | null;
+  final_bonus_mmk: number;
+  override_note: string | null;
 };
 
 function monthStart(d?: string) {
@@ -38,7 +43,7 @@ export const getKpiDashboard = createServerFn({ method: "POST" })
       _period_month: monthStart(data.periodMonth),
     });
     if (error) throw new Error(error.message);
-    return (rows ?? []) as KpiRow[];
+    return (rows ?? []) as unknown as KpiRow[];
   });
 
 export const setEmploymentType = createServerFn({ method: "POST" })
@@ -49,6 +54,39 @@ export const setEmploymentType = createServerFn({ method: "POST" })
       .from("employees")
       .update({ employment_type: data.type })
       .eq("id", data.employeeId);
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const setKpiEligibility = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { employeeId: string; periodMonth: string; eligible: boolean | null }) => d)
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.rpc("set_kpi_eligibility", {
+      _employee_id: data.employeeId,
+      _period_month: data.periodMonth,
+      _eligible: data.eligible,
+    });
+    if (error) throw new Error(error.message);
+    return { ok: true };
+  });
+
+export const setKpiBonusOverride = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: { employeeId: string; periodMonth: string; amountMmk: number | null; note: string | null }) => {
+    if (d.amountMmk !== null && (!Number.isFinite(d.amountMmk) || d.amountMmk < 0)) {
+      throw new Error("Bonus amount must be >= 0");
+    }
+    if (d.note && d.note.length > 500) throw new Error("Note too long");
+    return d;
+  })
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase.rpc("set_kpi_bonus_override", {
+      _employee_id: data.employeeId,
+      _period_month: data.periodMonth,
+      _amount_mmk: data.amountMmk,
+      _note: data.note,
+    });
     if (error) throw new Error(error.message);
     return { ok: true };
   });
