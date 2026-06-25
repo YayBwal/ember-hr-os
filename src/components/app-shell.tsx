@@ -61,21 +61,12 @@ const NAV = [
   { to: "/feedbacks", label: "Feedbacks", icon: MessageSquare },
 ] as const;
 
-const ROLES = ["HR", "Team Leader"] as const;
-type Role = (typeof ROLES)[number];
+import { useUserRoles } from "@/hooks/use-user-roles";
 
-function useRoleState(): [Role, (r: Role) => void] {
-  const [role, setRole] = useState<Role>("HR");
-  useEffect(() => {
-    const stored = typeof window !== "undefined" && window.localStorage.getItem("mandai-role");
-    if (stored && (ROLES as readonly string[]).includes(stored)) setRole(stored as Role);
-  }, []);
-  return [role, setRole];
-}
+type EffectiveRole = "HR" | "Team Leader";
 
 export function AppShell({ children }: { children?: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [role, setRole] = useRoleState();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -106,22 +97,24 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     },
   });
 
-  // Keep the route in sync with the selected role.
+  const { data: roles, isLoading: rolesLoading } = useUserRoles();
+  // Admin takes precedence — admins NEVER see the Team Leader Hub.
+  const isAdmin = (roles ?? []).includes("admin");
+  const isTeamLeader = (roles ?? []).includes("team_leader");
+  const role: EffectiveRole = isAdmin ? "HR" : isTeamLeader ? "Team Leader" : "HR";
+
+  // Enforce route access by role.
   useEffect(() => {
-    if (role === "Team Leader" && pathname !== "/team-leader" && !pathname.startsWith("/auth") && !pathname.startsWith("/settings")) {
-      navigate({ to: "/team-leader" });
-    } else if (role === "HR" && pathname === "/team-leader") {
+    if (rolesLoading) return;
+    if (pathname.startsWith("/auth")) return;
+    if (role === "Team Leader") {
+      if (pathname !== "/team-leader" && pathname !== "/settings") {
+        navigate({ to: "/team-leader" });
+      }
+    } else if (isAdmin && pathname === "/team-leader") {
       navigate({ to: "/operations" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [role, pathname]);
-
-  function changeRole(r: Role) {
-    setRole(r);
-    try { window.localStorage.setItem("mandai-role", r); } catch {}
-    if (r === "Team Leader") navigate({ to: "/team-leader" });
-    else navigate({ to: "/operations" });
-  }
+  }, [role, isAdmin, pathname, rolesLoading, navigate]);
 
   async function signOut() {
     await qc.cancelQueries();
@@ -138,7 +131,6 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
         <main className="min-h-screen">{children ?? <Outlet />}</main>
         <FloatingAccount
           role={role}
-          onRoleChange={changeRole}
           profile={profile}
           org={org}
           onSignOut={signOut}
@@ -148,14 +140,13 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     );
   }
 
-  // HR: sidebar only, no top nav bar.
+  // HR / Admin: sidebar only.
   return (
     <div className="flex min-h-screen w-full bg-background">
       <Sidebar
         collapsed={collapsed}
         onToggle={() => setCollapsed((c) => !c)}
         role={role}
-        onRoleChange={changeRole}
         profile={profile}
         org={org}
         onSignOut={signOut}
@@ -167,6 +158,7 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     </div>
   );
 }
+
 
 function Sidebar({
   collapsed,
