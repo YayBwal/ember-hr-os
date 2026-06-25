@@ -1,64 +1,71 @@
-## Promotion & Compensation workflow
+## Diagnosis: why the app feels slow
 
-### 1. Schema (one migration)
+I traced the lag to **client-side data fetching defaults**, not the backend. Concrete issues:
 
-- Add `trainee` to `employee_level` enum (keep legacy `mid` to avoid breaking existing rows).
-- Add columns to `public.employee_promotions`:
-  - `kpi_adjustment numeric NOT NULL DEFAULT 0` (clamped −50..+50 at write time)
-  - `period_month date` (auto-set from `effective_date` via trigger so each promotion is linked to a payroll cycle)
-- Update `promote_employee(_employee_id, _to_level, _to_position, _to_base_mmk, _effective_date, _note, _kpi_adjustment)`:
-  - Require `_note` not null/empty (reason is mandatory).
-  - Clamp `_kpi_adjustment` to [−50, 50].
-  - Insert row with `period_month = date_trunc('month', _effective_date)`.
-- Update `recompute_payroll`:
-  - Compute `v_adjust := SUM(kpi_adjustment) from employee_promotions WHERE employee_id=_emp AND period_month=v_period_start`.
-  - `effective_kpi := clamp(v_kpi + v_adjust, 0, 100)`; bonus tier and `kpi_snapshot` use `effective_kpi`.
+1. **QueryClient has no defaults.** `src/router.tsx` creates `new QueryClient()` with zero config. React Query defaults to `staleTime: 0` + refetch on window focus + refetch on mount, so every tab switch and every route re-mount re-runs every query.
+2. **Many parallel `useQuery` per page, no loaders.**
+   - Operations: 4 queries on the leaderboard + 4 more in the detail sheet + 4 in the Teams tab.
+   - Financial: 3+ queries per tab, plus a recompute mutation that invalidates everything.
+   - Pipeline (801 lines): 2 top-level queries plus nested ones.
+   - None use route loaders / `ensureQueryData`, so the page renders empty, then each query waterfalls in.
+3. **Duplicate query keys across routes.** `["employees"]`, `["teams"]`, `["kpis"]` are fetched independently from multiple components — each mount triggers its own request because nothing is shared/cached long enough.
+4. **`defaultPreloadStaleTime: 0`** combined with no `staleTime` means hover-preloads re-fetch immediately on real navigation.
+5. **VoiceAssistant always mounted** on every authenticated screen. It's ~284 lines, pulls `useRouter` + `useQueryClient` + speech APIs, and runs `speechSynthesis.getVoices()` etc. on every mount.
+6. **No code-splitting hints for big route files** (financial 549, operations 553, pipeline 801) — TanStack does route-level splitting, but the heavy detail sheets inside them ship in the same chunk.
 
-### 2. Server functions (`src/lib/financial.functions.ts`)
+## Plan to fix (frontend only, no schema/business-logic changes)
 
-- Extend `promoteEmployee` input with `kpiAdjustment: number` and required `reason: string` (alias of `note`, validated non-empty).
-- Keep return type the same.
+### 1. Tune the global QueryClient (biggest win, smallest change)
 
-### 3. UI — Promotion & Compensation modal (`financial.tsx` → `PromoteDialog`)
-
-Compact single modal opened from each row's **Promote** button:
-
-```text
-[Header] Promote {full_name}
-[Read-only] Current: {LEVEL_LABEL} · {position} · {formatMMK(current_salary)}
-
-Level     [ Trainee | Junior | Senior | Lead ]   (segmented control)
-Salary    [ number input, prefilled with current_salary ]
-KPI adj.  [ slider −50 … +50 ]  current value badge
-Reason*   [ textarea, required ]
-
-[Cancel]                                [ Save ] (disabled until reason.trim() && salary>0)
+`src/router.tsx`:
+```ts
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,            // 1 min: stop refetching on every mount
+      gcTime: 5 * 60_000,
+      refetchOnWindowFocus: false,  // kill background refetch storms
+      refetchOnMount: false,
+      retry: 1,
+    },
+  },
+});
 ```
+Also set router `defaultPreloadStaleTime: 30_000` so hover-preloaded data is reused on the real click.
 
-- Drop `position`, `effective date` inputs from the modal (use current position + today). Levels shown: Trainee, Junior, Senior, Lead only (legacy `mid` rows display "Junior" tier badge but aren't selectable).
-- Save button disabled while `reason.trim().length === 0`.
+Expected effect: tab switches and route changes become near-instant because cached data is reused; tables that were re-fetching on every navigation stop doing so.
 
-### 4. Optimistic update
+### 2. Lazy-load the VoiceAssistant
 
-`useMutation({ mutationFn: promoteFn, onMutate })`:
-- Snapshot `["employees-fin"]` and `["promotions"]` caches.
-- Optimistically patch the employee row (`level`, `monthly_base_mmk`) and prepend a synthetic promotion record (with `kpi_adjustment`).
-- `onError`: rollback. `onSettled`: invalidate `employees-fin`, `promotions`, `payroll_lines`, `payroll_runs`, `employee_kpis`.
-- Modal closes immediately on click; table reflects new level/salary before the round-trip completes.
+Replace the static import in `src/components/app-shell.tsx` with `React.lazy` + `Suspense`, and only mount it after `requestIdleCallback` / first interaction. This removes ~10-20kb + speech API setup from the initial render of every authenticated page.
 
-### 5. Payroll tab integration
+### 3. Share heavy queries via route loaders (HR shell only)
 
-- `Recompute payroll` button already calls `runPayroll`. After the migration its underlying `recompute_payroll` automatically applies the per-period KPI adjustment sum, so no UI logic change is needed beyond invalidating the relevant queries (already wired).
-- KPI Bonus column in the payroll table will reflect the adjusted bonus on next render.
+Add a small loader on `src/routes/_authenticated/route.tsx` that primes the most-used shared queries with `ensureQueryData`:
+- `["employees"]`, `["teams"]`, `["kpis"]` (used by dashboard, operations, financial).
+
+After step 1, this gives a single fetch reused across HR tabs instead of one fetch per tab on first visit.
+
+### 4. Reduce `select("*")` in two hot spots
+
+- `employee_kpis` → fetch only `employee_id, period_month, kpi, productivity, quality, attendance_pct, bonus_pct, base_salary_mmk` (current `select("*")` pulls every column).
+- `payroll_lines` in financial → narrow to the columns actually rendered.
+
+This trims response sizes; on a slow connection it shaves hundreds of ms.
+
+### 5. Drop unused invalidations
+
+`promoteEmployee` and `runPayroll` invalidate `["employees", "kpis", "promotions", "payroll_runs", "payroll_lines"]` even when the user is not on those tabs. Move to targeted invalidation by passing `refetchType: "active"` so only mounted queries refetch.
 
 ### Out of scope
-
-- No new pages, no new tables, no peer-review or report touches.
-- Effective date is always "today"; multi-cycle scheduling is not handled.
-- Salary band warning stays as-is.
+- No DB migrations, no RPC changes, no UI redesign.
+- No Cloud instance upgrade — current symptoms are client-cache misconfig, not backend overload. We can revisit instance size only if step 1+2 don't resolve it.
 
 ### Files touched
+- `src/router.tsx` — QueryClient defaults + router preload stale time.
+- `src/components/app-shell.tsx` — lazy VoiceAssistant.
+- `src/routes/_authenticated/route.tsx` — shared loader priming.
+- `src/routes/_authenticated/operations.tsx`, `financial.tsx` — narrower `select` + targeted invalidation.
 
-- `supabase/migrations/<new>.sql`
-- `src/lib/financial.functions.ts` (extend `promoteEmployee` validator)
-- `src/routes/_authenticated/financial.tsx` (`PromoteDialog` rewrite + `useMutation` optimistic wiring in `PromotionsTab`)
+### Validation
+After changes: navigate Dashboard → Operations → Financial → back. Network panel should show each shared query firing once, not on every tab switch.
