@@ -168,12 +168,12 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
         </div>
         <div>
           <Label className="flex items-center gap-1.5 text-xs">
-            <span>Team Leader Rating · Productivity &amp; Quality</span>
+            <span>Team Leader Rating</span>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  Your direct rating of each member. This is the primary input to their monthly KPI (alongside attendance, task completion, and peer reviews). HR Override exists for exceptional cases only.
+                  Your direct rating of each member. Combined with their task completion and attendance to form the monthly KPI.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -182,18 +182,18 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
             {(members ?? []).map((m) => {
               const r = (ratings ?? []).find((x) => x.employee_id === m.id);
               return <MemberRatingRow key={m.id} member={m} initial={r ?? null} locked={locked} reportId={existing?.id ?? null} onNeedSave={async () => {
-                // ensure a draft exists first
                 const res = await save({ data: { id: existing?.id ?? null, teamId: team.id, periodStart: period.start, periodEnd: period.end, summary, fileUrl, submit: false } });
                 qc.invalidateQueries({ queryKey: ["my_team_report", team.id, period.start] });
                 return res.id;
-              }} onSubmitRating={async (id, productivity, quality, note) => {
-                await rate({ data: { reportId: id, employeeId: m.id, productivity, quality, note } });
+              }} onSubmitRating={async (id, rating, note) => {
+                await rate({ data: { reportId: id, employeeId: m.id, rating, note } });
                 qc.invalidateQueries({ queryKey: ["existing_ratings", id] });
               }} />;
             })}
             {(members?.length ?? 0) === 0 && <div className="text-xs text-muted-foreground">No team members.</div>}
           </div>
         </div>
+
       </div>
 
       <TasksSection teamId={team.id} members={members ?? []} />
