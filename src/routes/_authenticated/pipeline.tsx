@@ -342,6 +342,29 @@ function PipelinePage() {
                   <GitCompare className="h-3.5 w-3.5" /> Compare ({selected.size})
                 </Button>
               )}
+              {(activeStage === "interview" || activeStage === "trainee" || activeStage === "screening") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const list = (candidates ?? []).filter((c) => selected.has(c.id));
+                    if (list.length) setHolding(list);
+                  }}
+                  className="gap-1.5"
+                >
+                  <PauseCircle className="h-3.5 w-3.5" /> Place on hold
+                </Button>
+              )}
+              {activeStage === "hold" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => recallMut.mutate({ ids: Array.from(selected), to: "interview" })}
+                  className="gap-1.5"
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Recall → Interview
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
