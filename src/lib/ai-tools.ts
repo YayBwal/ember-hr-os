@@ -177,7 +177,8 @@ export async function dispatchTool(
         .order("kpi", { ascending: dir === "lowest" })
         .limit(limit);
       if (error) return { result: { ok: false, error: error.message } };
-      const list = (rows ?? []).map((r: Record<string, unknown>) => {
+      type KpiRow = { name: string; position: string | null; department: string | null; kpi: number; task_completion: number; attendance: number };
+      const list: KpiRow[] = (rows ?? []).map((r: Record<string, unknown>) => {
         const emp = r.employees as { full_name?: string; position?: string; department?: string } | null;
         return {
           name: emp?.full_name ?? "—",
@@ -191,7 +192,7 @@ export async function dispatchTool(
       const chart: ChartSpec = {
         type: "bar",
         title: `${dir === "lowest" ? "Lowest" : "Highest"} KPI · ${period.slice(0, 7)}`,
-        data: list.map((r) => ({ label: r.name, value: r.kpi })),
+        data: list.map((r: KpiRow) => ({ label: r.name, value: r.kpi })),
       };
       return { result: { ok: true, period, direction: dir, rows: list }, chart };
     }
