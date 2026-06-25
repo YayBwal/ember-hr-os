@@ -58,7 +58,13 @@ function OperationsPage() {
       <div className="px-4 py-6 md:px-8">
         <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Operations</div>
         <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Workforce</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Employees, teams and meetings — live data.</p>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Employees, teams and meetings — live data.
+          <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            Source of truth for KPI sync
+          </span>
+        </p>
 
         <Tabs defaultValue="leaderboard" className="mt-6">
           <TabsList>
