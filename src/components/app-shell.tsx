@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
+import logoAsset from "@/assets/mandai-logo.svg.asset.json";
 const AssistantDock = lazy(() =>
   import("@/components/assistant-dock").then((m) => ({ default: m.AssistantDock })),
 );
