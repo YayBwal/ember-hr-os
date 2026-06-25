@@ -72,9 +72,11 @@ function FinancialPage() {
           <TabsList>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
             <TabsTrigger value="promotions">Promotions</TabsTrigger>
+            <TabsTrigger value="kpi">KPI Calculation</TabsTrigger>
           </TabsList>
           <TabsContent value="payroll" className="mt-4"><PayrollTab /></TabsContent>
           <TabsContent value="promotions" className="mt-4"><PromotionsTab /></TabsContent>
+          <TabsContent value="kpi" className="mt-4"><KpiTab /></TabsContent>
         </Tabs>
       </div>
     </AppShell>
