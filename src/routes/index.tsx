@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { formatMMKCompact } from "@/lib/format";
-import logoAsset from "@/assets/mandai-logo.svg.asset.json";
+import logoAsset from "@/assets/mandai-logo.png.asset.json";
 
 export const Route = createFileRoute("/")({
   head: () => ({
