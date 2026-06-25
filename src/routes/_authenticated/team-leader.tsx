@@ -168,12 +168,12 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
         </div>
         <div>
           <Label className="flex items-center gap-1.5 text-xs">
-            <span>Team Leader Rating · Productivity &amp; Quality</span>
+            <span>Team Leader Rating</span>
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
                 <TooltipContent className="max-w-xs">
-                  Your direct rating of each member. This is the primary input to their monthly KPI (alongside attendance, task completion, and peer reviews). HR Override exists for exceptional cases only.
+                  Your direct rating of each member. Combined with their task completion and attendance to form the monthly KPI.
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -182,18 +182,18 @@ function TeamLeaderCard({ team }: { team: { id: string; name: string; department
             {(members ?? []).map((m) => {
               const r = (ratings ?? []).find((x) => x.employee_id === m.id);
               return <MemberRatingRow key={m.id} member={m} initial={r ?? null} locked={locked} reportId={existing?.id ?? null} onNeedSave={async () => {
-                // ensure a draft exists first
                 const res = await save({ data: { id: existing?.id ?? null, teamId: team.id, periodStart: period.start, periodEnd: period.end, summary, fileUrl, submit: false } });
                 qc.invalidateQueries({ queryKey: ["my_team_report", team.id, period.start] });
                 return res.id;
-              }} onSubmitRating={async (id, productivity, quality, note) => {
-                await rate({ data: { reportId: id, employeeId: m.id, productivity, quality, note } });
+              }} onSubmitRating={async (id, rating, note) => {
+                await rate({ data: { reportId: id, employeeId: m.id, rating, note } });
                 qc.invalidateQueries({ queryKey: ["existing_ratings", id] });
               }} />;
             })}
             {(members?.length ?? 0) === 0 && <div className="text-xs text-muted-foreground">No team members.</div>}
           </div>
         </div>
+
       </div>
 
       <TasksSection teamId={team.id} members={members ?? []} />
@@ -270,17 +270,18 @@ function MemberRatingRow({
   locked: boolean;
   reportId: string | null;
   onNeedSave: () => Promise<string>;
-  onSubmitRating: (reportId: string, productivity: number, quality: number, note?: string) => Promise<void>;
+  onSubmitRating: (reportId: string, rating: number, note?: string) => Promise<void>;
 }) {
-  const [prod, setProd] = useState(initial?.productivity ?? 80);
-  const [qual, setQual] = useState(initial?.quality ?? 80);
+  // Existing ratings stored two columns (prod+quality); the average is the single TL rating.
+  const initialRating = initial ? Math.round((initial.productivity + initial.quality) / 2) : 80;
+  const [rating, setRating] = useState(initialRating);
   const [note, setNote] = useState(initial?.note ?? "");
   const [saving, setSaving] = useState(false);
   const save = async () => {
     setSaving(true);
     try {
       const id = reportId ?? (await onNeedSave());
-      await onSubmitRating(id, prod, qual, note || undefined);
+      await onSubmitRating(id, rating, note || undefined);
       toast.success(`${member.full_name} rated`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : "failed";
@@ -291,16 +292,17 @@ function MemberRatingRow({
     <div className="rounded border border-border bg-background p-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarFallback className="text-[10px]">{initials(member.full_name)}</AvatarFallback></Avatar><span className="text-sm">{member.full_name}</span></div>
-        <span className="font-mono text-xs">P {prod} · Q {qual}</span>
+        <span className="font-mono text-xs">{rating}</span>
       </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <div><Label className="text-[10px]">Productivity</Label><Slider value={[prod]} onValueChange={(v) => setProd(v[0])} min={0} max={100} step={5} disabled={locked} /></div>
-        <div><Label className="text-[10px]">Quality</Label><Slider value={[qual]} onValueChange={(v) => setQual(v[0])} min={0} max={100} step={5} disabled={locked} /></div>
+      <div className="mt-2">
+        <Label className="text-[10px]">Performance rating</Label>
+        <Slider value={[rating]} onValueChange={(v) => setRating(v[0])} min={0} max={100} step={5} disabled={locked} />
       </div>
       <div className="mt-2 flex gap-2">
-        <Input value={note} onChange={(e) => setNote(e.target.value)} disabled={locked} placeholder="Note" className="h-7 text-xs" />
+        <Input value={note} onChange={(e) => setNote(e.target.value)} disabled={locked} placeholder="Feedback note" className="h-7 text-xs" />
         {!locked && <Button size="sm" variant="secondary" onClick={save} disabled={saving}>{saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}</Button>}
       </div>
     </div>
   );
 }
+

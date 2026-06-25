@@ -646,71 +646,6 @@ export type Database = {
           },
         ]
       }
-      peer_reviews: {
-        Row: {
-          created_at: string
-          id: string
-          note: string | null
-          org_id: string
-          period_month: string
-          reviewee_employee_id: string
-          reviewer_employee_id: string
-          score: number
-          team_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          note?: string | null
-          org_id: string
-          period_month: string
-          reviewee_employee_id: string
-          reviewer_employee_id: string
-          score: number
-          team_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          note?: string | null
-          org_id?: string
-          period_month?: string
-          reviewee_employee_id?: string
-          reviewer_employee_id?: string
-          score?: number
-          team_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "peer_reviews_org_id_fkey"
-            columns: ["org_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "peer_reviews_reviewee_employee_id_fkey"
-            columns: ["reviewee_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "peer_reviews_reviewer_employee_id_fkey"
-            columns: ["reviewer_employee_id"]
-            isOneToOne: false
-            referencedRelation: "employees"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "peer_reviews_team_id_fkey"
-            columns: ["team_id"]
-            isOneToOne: false
-            referencedRelation: "teams"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -1074,13 +1009,6 @@ export type Database = {
       }
       create_and_switch_org: { Args: { _name: string }; Returns: string }
       current_org_id: { Args: never; Returns: string }
-      get_peer_avg: {
-        Args: { _employee_id: string; _period: string }
-        Returns: {
-          avg_score: number
-          review_count: number
-        }[]
-      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

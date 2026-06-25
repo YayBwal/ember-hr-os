@@ -24,8 +24,8 @@ import {
   removeTeamMemberFn,
   saveTeamReport,
   rateMember,
-  submitPeerReview,
 } from "@/lib/teams.functions";
+
 import { renameTeam } from "@/lib/operations.functions";
 import { createTask, updateTask } from "@/lib/delivery.functions";
 
@@ -61,16 +61,12 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
                 <TabsTrigger value="members">Members</TabsTrigger>
                 <TabsTrigger value="tasks">Tasks</TabsTrigger>
                 <TabsTrigger value="reports">Reports</TabsTrigger>
-                <TabsTrigger value="peer" className="gap-1.5">
-                  <span>Peer Reviews</span>
-                  <PeerPendingBadge teamId={team.id} />
-                </TabsTrigger>
               </TabsList>
               <TabsContent value="members" className="mt-3"><MembersTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
               <TabsContent value="tasks" className="mt-3"><TeamTasksTab team={team} allEmployees={allEmployees} readOnly={isAdmin} /></TabsContent>
               <TabsContent value="reports" className="mt-3"><ReportsTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
-              <TabsContent value="peer" className="mt-3"><PeerReviewTab team={team} allEmployees={allEmployees} isAdmin={isAdmin} /></TabsContent>
             </Tabs>
+
           </>
         )}
       </SheetContent>
@@ -357,146 +353,21 @@ function ReportsTab({ team, allEmployees, isAdmin }: { team: Team; allEmployees:
               <div className="mt-2 space-y-1">
                 {rs.map((rt) => {
                   const emp = allEmployees.find((e) => e.id === rt.employee_id);
+                  const rating = Math.round(((rt.productivity ?? 0) + (rt.quality ?? 0)) / 2);
                   return (
                     <div key={rt.employee_id} className="flex items-center justify-between rounded border border-border/60 px-2 py-1 text-xs">
                       <span>{emp?.full_name ?? "?"}</span>
-                      <span className="font-mono">prod {rt.productivity} · qual {rt.quality}</span>
+                      <span className="font-mono">rating {rating}</span>
                     </div>
                   );
                 })}
               </div>
             )}
+
           </div>
         );
       })}
       {(reports?.length ?? 0) === 0 && <div className="rounded border border-dashed border-border p-6 text-center text-xs text-muted-foreground">No reports yet.</div>}
     </div>
   );
-}
-
-function PeerReviewTab({ team, allEmployees, isAdmin }: { team: Team; allEmployees: Emp[]; isAdmin: boolean }) {
-  const qc = useQueryClient();
-  const submit = useServerFn(submitPeerReview);
-  const period = thisMonth().start;
-
-  const { data: meEmp } = useQuery({
-    queryKey: ["me", "employee"],
-    queryFn: async () => {
-      const { data: u } = await supabase.auth.getUser();
-      if (!u.user?.email) return null;
-      const { data } = await supabase.from("employees").select("id, full_name").eq("email", u.user.email).maybeSingle();
-      return data;
-    },
-  });
-  const { data: members } = useQuery({
-    queryKey: ["team_members", team.id],
-    queryFn: async () => {
-      const { data } = await supabase.from("team_members").select("employee_id").eq("team_id", team.id);
-      return (data ?? []).map((r) => r.employee_id as string);
-    },
-  });
-  const memberIds = new Set(members ?? []);
-  const teammates = allEmployees.filter((e) => memberIds.has(e.id) && e.id !== meEmp?.id);
-
-  const { data: myReviews } = useQuery({
-    queryKey: ["peer_reviews_mine", team.id, period],
-    enabled: !!meEmp?.id,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("peer_reviews")
-        .select("reviewee_employee_id, score")
-        .eq("team_id", team.id)
-        .eq("period_month", period)
-        .eq("reviewer_employee_id", meEmp!.id);
-      return data ?? [];
-    },
-  });
-  const scoreOf = (id: string) => myReviews?.find((r) => r.reviewee_employee_id === id)?.score ?? null;
-
-  const isTeamMember = !!meEmp && memberIds.has(meEmp.id);
-
-  return (
-    <div className="space-y-4">
-      {isTeamMember && (
-        <div>
-          <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Rate teammates · {period.slice(0, 7)}</div>
-          <div className="mt-2 space-y-2">
-            {teammates.map((t) => <PeerRow key={t.id} teammate={t} current={scoreOf(t.id)} onSave={(score, note) => submit({ data: { teamId: team.id, revieweeEmployeeId: t.id, periodMonth: period, score, note } }).then(() => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["peer_reviews_mine", team.id, period] }); }).catch((e: Error) => toast.error(e.message))} />)}
-            {teammates.length === 0 && <div className="text-xs text-muted-foreground">No teammates to rate.</div>}
-          </div>
-        </div>
-      )}
-      {isAdmin && <PeerAggregates team={team} allEmployees={allEmployees} memberIds={[...memberIds]} period={period} />}
-      {!isAdmin && !isTeamMember && <div className="rounded border border-dashed border-border p-6 text-center text-xs text-muted-foreground">You're not a member of this team.</div>}
-    </div>
-  );
-}
-
-function PeerRow({ teammate, current, onSave }: { teammate: Emp; current: number | null; onSave: (score: number, note?: string) => void }) {
-  const [score, setScore] = useState(current ?? 80);
-  const [note, setNote] = useState("");
-  return (
-    <div className="rounded border border-border bg-card p-2">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarFallback className="text-[10px]">{initials(teammate.full_name)}</AvatarFallback></Avatar><span className="text-sm">{teammate.full_name}</span></div>
-        <span className="font-mono text-xs">{score}</span>
-      </div>
-      <Slider value={[score]} onValueChange={(v) => setScore(v[0])} min={0} max={100} step={5} className="mt-2" />
-      <div className="mt-2 flex gap-2">
-        <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note (anonymous)" className="h-7 text-xs" />
-        <Button size="sm" variant="secondary" onClick={() => onSave(score, note || undefined)}>{current === null ? "Submit" : "Update"}</Button>
-      </div>
-    </div>
-  );
-}
-
-function PeerAggregates({ team, allEmployees, memberIds, period }: { team: Team; allEmployees: Emp[]; memberIds: string[]; period: string }) {
-  const { data: aggs } = useQuery({
-    queryKey: ["peer_aggs", team.id, period],
-    queryFn: async () => {
-      const out: Record<string, { avg: number; count: number }> = {};
-      await Promise.all(memberIds.map(async (id) => {
-        const { data } = await supabase.rpc("get_peer_avg", { _employee_id: id, _period: period });
-        const row = (data ?? [])[0] as { avg_score: number; review_count: number } | undefined;
-        out[id] = { avg: Number(row?.avg_score ?? 0), count: row?.review_count ?? 0 };
-      }));
-      return out;
-    },
-  });
-  return (
-    <div>
-      <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Peer review aggregates (admin)</div>
-      <div className="mt-2 space-y-1">
-        {memberIds.map((id) => {
-          const emp = allEmployees.find((e) => e.id === id);
-          const a = aggs?.[id];
-          return (
-            <div key={id} className="flex items-center justify-between rounded border border-border px-2 py-1 text-xs">
-              <span>{emp?.full_name ?? id}</span>
-              <span className="font-mono">{a ? `${a.avg.toFixed(1)} (${a.count} reviews)` : "—"}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-function PeerPendingBadge({ teamId }: { teamId: string }) {
-  const period = thisMonth().start;
-  const { data: pending } = useQuery({
-    queryKey: ["peer_pending_badge", teamId, period],
-    queryFn: async () => {
-      const [{ data: tm }, { data: pr }] = await Promise.all([
-        supabase.from("team_members").select("employee_id").eq("team_id", teamId),
-        supabase.from("peer_reviews").select("reviewer_employee_id").eq("team_id", teamId).eq("period_month", period),
-      ]);
-      const submitted = new Set((pr ?? []).map((r) => r.reviewer_employee_id));
-      let p = 0;
-      for (const m of tm ?? []) if (!submitted.has(m.employee_id)) p++;
-      return p;
-    },
-  });
-  if (!pending) return null;
-  return <Badge variant="default" className="h-4 min-w-4 px-1 text-[10px] leading-none">{pending}</Badge>;
 }

@@ -96,17 +96,19 @@ export const saveTeamReport = createServerFn({ method: "POST" })
 export const rateMember = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator(
-    (d: { reportId: string; employeeId: string; productivity: number; quality: number; note?: string }) => d,
+    (d: { reportId: string; employeeId: string; rating: number; note?: string }) => d,
   )
   .handler(async ({ data, context }) => {
+    // Single TL rating; stored into both productivity & quality columns for back-compat
+    // (recompute_employee_kpi averages them, so the average equals the single rating).
     const { error } = await context.supabase
       .from("member_ratings")
       .upsert(
         {
           report_id: data.reportId,
           employee_id: data.employeeId,
-          productivity: data.productivity,
-          quality: data.quality,
+          productivity: data.rating,
+          quality: data.rating,
           note: data.note ?? null,
         },
         { onConflict: "report_id,employee_id" },
@@ -115,40 +117,3 @@ export const rateMember = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const submitPeerReview = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator(
-    (d: { teamId: string; revieweeEmployeeId: string; periodMonth: string; score: number; note?: string }) => d,
-  )
-  .handler(async ({ data, context }) => {
-    const { data: profile } = await context.supabase
-      .from("profiles")
-      .select("org_id")
-      .eq("id", context.userId)
-      .maybeSingle();
-    if (!profile?.org_id) throw new Error("No org");
-    const { data: userRow } = await context.supabase.auth.getUser();
-    const email = userRow.user?.email;
-    if (!email) throw new Error("no email");
-    const { data: me } = await context.supabase
-      .from("employees")
-      .select("id")
-      .eq("email", email)
-      .maybeSingle();
-    if (!me?.id) throw new Error("You are not an employee record");
-    if (me.id === data.revieweeEmployeeId) throw new Error("cannot review yourself");
-    const { error } = await context.supabase.from("peer_reviews").upsert(
-      {
-        org_id: profile.org_id,
-        team_id: data.teamId,
-        period_month: data.periodMonth,
-        reviewer_employee_id: me.id,
-        reviewee_employee_id: data.revieweeEmployeeId,
-        score: data.score,
-        note: data.note ?? null,
-      },
-      { onConflict: "period_month,reviewer_employee_id,reviewee_employee_id" },
-    );
-    if (error) throw new Error(error.message);
-    return { ok: true };
-  });

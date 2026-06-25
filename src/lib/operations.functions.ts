@@ -3,10 +3,6 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 type Dept = "HR" | "Operations" | "Finance" | "Admin" | "Engineering";
 
-function periodMonth(d?: string) {
-  const date = d ? new Date(d) : new Date();
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)).toISOString().slice(0, 10);
-}
 
 export const approveCandidate = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -44,23 +40,6 @@ export const logAttendance = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
-export const setProductivityQuality = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: { employeeId: string; periodMonth?: string; productivity: number; quality: number }) => d)
-  .handler(async ({ data, context }) => {
-    const period = periodMonth(data.periodMonth);
-    // Ensure a row exists, then update productivity/quality (trigger fires payroll recompute).
-    await context.supabase.rpc("recompute_employee_kpi", { _employee_id: data.employeeId, _period: period });
-    const { error } = await context.supabase
-      .from("employee_kpis")
-      .update({ productivity: data.productivity, quality: data.quality })
-      .eq("employee_id", data.employeeId)
-      .eq("period_month", period);
-    if (error) throw new Error(error.message);
-    // recompute again to apply new prod/quality to kpi
-    await context.supabase.rpc("recompute_employee_kpi", { _employee_id: data.employeeId, _period: period });
-    return { ok: true };
-  });
 
 export const createTeam = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

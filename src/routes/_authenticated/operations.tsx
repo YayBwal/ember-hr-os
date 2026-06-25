@@ -17,11 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { toast } from "sonner";
-import { Loader2, Plus, Users, Trophy, UserPlus, Info, ClipboardList } from "lucide-react";
+import { Loader2, Plus, Users, Trophy, UserPlus } from "lucide-react";
 import { formatMMKCompact, initials } from "@/lib/format";
 import { useRealtimeInvalidate } from "@/hooks/use-realtime-invalidate";
-import { createTeam, deleteTeam, logAttendance, setProductivityQuality } from "@/lib/operations.functions";
+import { createTeam, deleteTeam, logAttendance } from "@/lib/operations.functions";
 import { TeamDetailSheet } from "@/components/team-detail-sheet";
+
 
 export const Route = createFileRoute("/_authenticated/operations")({
   head: () => ({ meta: [{ title: "Operations · Mandai" }] }),
@@ -40,9 +41,10 @@ type Employee = {
   level: "junior" | "mid" | "senior" | "lead";
 };
 type Team = { id: string; name: string; department: Dept; team_lead_employee_id: string | null; org_id: string };
-type Kpi = { employee_id: string; period_month: string; task_completion: number; productivity: number; quality: number; attendance: number; kpi: number };
+type Kpi = { employee_id: string; period_month: string; task_completion: number; attendance: number; kpi: number };
 
-type SortKey = "kpi" | "productivity" | "attendance" | "completed";
+type SortKey = "kpi" | "attendance" | "completed";
+
 
 function OperationsPage() {
   useRealtimeInvalidate(
@@ -87,7 +89,7 @@ function Leaderboard() {
   const { data: kpis } = useQuery({
     queryKey: ["employee-kpis"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("employee_kpis").select("employee_id, period_month, kpi, productivity, quality, attendance, task_completion");
+      const { data, error } = await supabase.from("employee_kpis").select("employee_id, period_month, kpi, attendance, task_completion");
       if (error) throw error;
       return (data ?? []) as Kpi[];
     },
@@ -115,24 +117,9 @@ function Leaderboard() {
     },
   });
 
-  // Pending peer reviews this month: distinct (team_id, reviewer) pairs missing.
   const period = new Date(); period.setUTCDate(1);
   const periodKey = period.toISOString().slice(0, 10);
-  const { data: pendingReviews } = useQuery({
-    queryKey: ["pending_peer_reviews", periodKey],
-    queryFn: async () => {
-      const [{ data: tm }, { data: pr }] = await Promise.all([
-        supabase.from("team_members").select("team_id, employee_id"),
-        supabase.from("peer_reviews").select("team_id, reviewer_employee_id").eq("period_month", periodKey),
-      ]);
-      const submitted = new Set((pr ?? []).map((r) => `${r.team_id}:${r.reviewer_employee_id}`));
-      let pending = 0;
-      for (const m of tm ?? []) if (!submitted.has(`${m.team_id}:${m.employee_id}`)) pending++;
-      return pending;
-    },
-  });
 
-  
   const latestKpi = (id: string) => kpis?.find((k) => k.employee_id === id && k.period_month.startsWith(periodKey.slice(0, 7)));
 
   const rows = useMemo(() => {
@@ -142,7 +129,7 @@ function Leaderboard() {
       return {
         emp: e,
         kpi: Number(k?.kpi ?? e.performance_score ?? 0),
-        productivity: Number(k?.productivity ?? 80),
+        taskCompletion: Number(k?.task_completion ?? 0),
         attendance: Number(k?.attendance ?? e.attendance_pct ?? 0),
         completed: counts.completed,
         active: counts.active,
@@ -150,7 +137,6 @@ function Leaderboard() {
     });
     const cmp: Record<SortKey, (a: typeof list[number], b: typeof list[number]) => number> = {
       kpi: (a, b) => b.kpi - a.kpi,
-      productivity: (a, b) => b.productivity - a.productivity,
       attendance: (a, b) => b.attendance - a.attendance,
       completed: (a, b) => b.completed - a.completed,
     };
@@ -158,6 +144,7 @@ function Leaderboard() {
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employees, kpis, taskCounts, sortBy]);
+
 
   const teamName = (id: string | null) => teams?.find((t) => t.id === id)?.name ?? "—";
 
@@ -169,22 +156,10 @@ function Leaderboard() {
           <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="kpi">Highest KPI</SelectItem>
-            <SelectItem value="productivity">Productivity</SelectItem>
             <SelectItem value="attendance">Attendance</SelectItem>
             <SelectItem value="completed">Completed Tasks</SelectItem>
           </SelectContent>
         </Select>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant={pendingReviews && pendingReviews > 0 ? "default" : "outline"} className="ml-auto gap-1 cursor-help">
-                <ClipboardList className="h-3 w-3" />
-                {pendingReviews ?? 0} pending review{(pendingReviews ?? 0) === 1 ? "" : "s"}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>Team members who haven't submitted peer reviews this month.</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
@@ -196,7 +171,7 @@ function Leaderboard() {
               <th className="px-4 py-3 text-left">Dept</th>
               <th className="px-4 py-3 text-left">Team</th>
               <th className="px-4 py-3 text-right">KPI</th>
-              <th className="px-4 py-3 text-right">Prod.</th>
+              <th className="px-4 py-3 text-right">Task %</th>
               <th className="px-4 py-3 text-right">Att.</th>
               <th className="px-4 py-3 text-right">Done</th>
               <th className="px-4 py-3 text-right">Active</th>
@@ -222,7 +197,7 @@ function Leaderboard() {
                 <td className="px-4 py-3">{r.emp.department}</td>
                 <td className="px-4 py-3">{teamName(r.emp.team_id)}</td>
                 <td className="px-4 py-3 text-right font-medium">{r.kpi.toFixed(1)}</td>
-                <td className="px-4 py-3 text-right">{r.productivity.toFixed(0)}</td>
+                <td className="px-4 py-3 text-right">{r.taskCompletion.toFixed(0)}%</td>
                 <td className="px-4 py-3 text-right">{r.attendance.toFixed(0)}%</td>
                 <td className="px-4 py-3 text-right">{r.completed}</td>
                 <td className="px-4 py-3 text-right">{r.active}</td>
@@ -231,6 +206,7 @@ function Leaderboard() {
             ))}
             {rows.length === 0 && (
               <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees yet. Approve a candidate in Pipeline.</td></tr>
+
             )}
           </tbody>
         </table>
@@ -245,12 +221,9 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
   const open = !!employeeId;
   const qc = useQueryClient();
   const logAtt = useServerFn(logAttendance);
-  const setPQ = useServerFn(setProductivityQuality);
   const [att, setAtt] = useState<{ date: string; status: "present" | "late" | "absent" | "leave"; minutes: number }>({
     date: new Date().toISOString().slice(0, 10), status: "present", minutes: 0,
   });
-  const [prod, setProd] = useState(80);
-  const [qual, setQual] = useState(80);
 
   const { data: emp } = useQuery({
     queryKey: ["employee", employeeId],
@@ -307,10 +280,7 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
       qc.invalidateQueries({ queryKey: ["employee-kpis"] });
     },
   });
-  const submitPQ = useMutation({
-    mutationFn: () => setPQ({ data: { employeeId: employeeId!, productivity: prod, quality: qual } }),
-    onSuccess: () => { toast.success("Saved"); qc.invalidateQueries({ queryKey: ["employee_kpi_current", employeeId] }); qc.invalidateQueries({ queryKey: ["employee-kpis"] }); },
-  });
+
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -340,9 +310,8 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
               <Row label="Salary grade" value={emp.salary_grade ?? "—"} />
             </TabsContent>
             <TabsContent value="performance" className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <Metric label="KPI" value={(kpi?.kpi ?? 0).toFixed(1)} />
-                <Metric label="Productivity" value={(kpi?.productivity ?? 80).toFixed(0)} />
                 <Metric label="Attendance" value={`${(kpi?.attendance ?? 100).toFixed(0)}%`} />
                 <Metric label="Task completion" value={`${(kpi?.task_completion ?? 0).toFixed(0)}%`} />
               </div>
@@ -365,34 +334,8 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
                   </Button>
                 </div>
               </div>
-              <div className="rounded-lg border border-border p-3">
-                <div className="flex items-center gap-1.5 text-xs font-mono uppercase text-muted-foreground">
-                  <span>HR Override · Productivity &amp; Quality</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        HR-only manual adjustment that writes directly to the employee's monthly KPI and recomputes payroll. Use sparingly — Team Leader Ratings (in Team Leader Hub) are the primary performance signal.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Writes directly to monthly KPI and triggers payroll recompute. Team Leader ratings live in Team Leader Hub.</div>
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs"><span>Productivity</span><span className="font-mono">{prod}</span></div>
-                    <Slider value={[prod]} onValueChange={(v) => setProd(v[0])} min={0} max={100} step={1} />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs"><span>Quality</span><span className="font-mono">{qual}</span></div>
-                    <Slider value={[qual]} onValueChange={(v) => setQual(v[0])} min={0} max={100} step={1} />
-                  </div>
-                  <Button size="sm" onClick={() => submitPQ.mutate()} disabled={submitPQ.isPending}>
-                    {submitPQ.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
-                  </Button>
-                </div>
-              </div>
             </TabsContent>
+
             <TabsContent value="tasks" className="space-y-2">
               {(tasks ?? []).map((t) => (
                 <div key={t.id} className="rounded border border-border p-2">

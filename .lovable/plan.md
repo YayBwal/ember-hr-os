@@ -1,107 +1,426 @@
+# KPI Simplification Plan
 
-# Voice AI "Connecting…" Stuck Issue — Final Fix Plan
+## Objective
 
-## ပြဿနာရဲ့ အမြစ်
+Simplify performance evaluation by:
 
-Network probe က ဒီ response ပြန်လာတယ်:
-```json
-{"ok":true,"hasGeminiKey":true,"hasSupabaseEnv":true,"hasWebSocketPair":false}
+- Removing Peer Reviews entirely.
+- Removing Productivity metrics entirely.
+- Removing Quality metrics entirely.
+- Excluding completed tasks from KPI calculations.
+- Merging Task Completion and Team Leader Feedback into a single workflow.
+- Making KPI dependent only on Task Completion, Attendance, and Team Leader Rating.
+
+---
+
+# 1. Backend — KPI Recompute & Triggers
+
+Rewrite:
+
+```sql
+public.recompute_employee_kpi(_employee_id, _period)
+
 ```
 
-`hasWebSocketPair:false` ဆိုတာ — **Lovable Cloud ရဲ့ TanStack Start server runtime က WebSocket server-side proxy ကို မထောက်ပံ့ဘူး**။ ဒါက ကျွန်တော်တို့ရဲ့ ယခုလက်ရှိ approach (browser → `/api/gemini-live` proxy → Gemini) ဟာ ဘယ်လိုပဲပြင်ပြင် အလုပ်လုပ်မှာမဟုတ်ဘူး။ Probe က ဒီ runtime မှာ WS infrastructure မရှိဘူးလို့ ဘောက်ပေးနေတယ်။
+### Task Completion
 
-ပြီးခဲ့တဲ့ turn မှာ probe check ကိုပဲ ပိတ်ထားလိုက်တဲ့အတွက် — UI က "Voice not available" မပြတော့ဘဲ၊ ဒါပေမယ့် WebSocket connection ကိုယ်တိုင်က server မှာ fail ဖြစ်နေတဲ့အတွက် browser က "connecting" မှာ ထိုင်နေတာ။
+Count only active tasks.
 
-## Solution: Browser-Direct + Ephemeral Token
+Exclude:
 
-**Proxy ဖျက်ပြီး၊ browser က Gemini ကို တိုက်ရိုက်ချိတ်တယ်။** Server က ephemeral token (1 မိနစ်တိုသော) ပဲ ထုတ်ပေးတယ်။ ဒါက Google ကိုယ်တိုင်က Live API client app တွေအတွက် ရည်ရွယ်ထားတဲ့ official pattern ပါ။
+```sql
+status = 'completed'
+status = 'done'
 
-```text
-လက်ရှိ (broken):
-  Browser ─[WS]→ /api/gemini-live (Lovable Cloud) ─[WS]→ Gemini Live
-                  ↑ WebSocketPair မထောက်ပံ့ → fail
-
-အသစ် (works):
-  Browser ─[HTTPS]→ /api/gemini-token (mint ephemeral) ─→ ✓
-  Browser ─[WSS]→ Gemini Live (ephemeral token နဲ့) ─→ ✓
 ```
 
-**ဘာကြောင့်အလုပ်လုပ်လဲ:**
-- TanStack server route က ephemeral token mint တာက ရိုးရိုး HTTPS POST တစ်ခုပဲ — WebSocketPair မလို
-- Browser က Gemini ကို တိုက်ရိုက် WSS ချိတ်တာက browser native WebSocket — Lovable runtime ကို လုံးဝ မဖြတ်တော့ဘူး
-- API key က server မှာ ဆက်လုံခြုံတယ် (token ပဲ browser ကို ပေးတယ်)
+Formula:
 
-## ပြောင်းရမယ့်အရာများ
+```sql
+active_total = COUNT(tasks WHERE status IN ('todo','in_progress'))
 
-### 1. Server: Token mint endpoint အသစ်
-**File:** `src/routes/api/gemini-token.ts` (`gemini-live.ts` ကို အစားထိုး)
+in_progress = COUNT(tasks WHERE status='in_progress')
 
-- Supabase user verify လုပ်
-- Google REST API `POST https://generativelanguage.googleapis.com/v1alpha/auth_tokens?key=<GEMINI_API_KEY>` ခေါ်
-- Body မှာ session config (model, voice, tools, system instruction) ထည့်
-- Ephemeral `name` (token string) ပြန်ပေး — expire = 60 seconds, session lock = 10 minutes
-- `gemini-live.ts` ဖျက်
+task_completion = (in_progress / active_total) * 100
 
-### 2. Client: Direct WebSocket connection
-**File:** `src/lib/gemini-live-client.ts`
-
-- `/api/gemini-token` POST ခေါ်ပြီး ephemeral token ရယူ
-- `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=<token>` ကို တိုက်ရိုက်ချိတ်
-- Setup message၊ audio streaming၊ tool calls လုပ်ငန်းစဉ်အကုန် ယခုလို ဆက်လုပ်
-- Token mint တုန်း error ဆို မှန်ကန်စွာ surface လုပ်
-
-### 3. UI: Diagnostic ပိုကောင်းအောင်
-**File:** `src/components/assistant-dock.tsx`
-
-- "Connecting" အပ်ပြီး 8 seconds ထက်ကြာရင် "Connection timed out — retry" ပြ
-- Token mint failure (network/quota/key) သီးခြား error message ပြ
-
-### 4. Cleanup
-- `src/routes/api/gemini-live.ts` delete
-- `src/lib/dispatch-tool.functions.ts` အလုပ်ဆက်လုပ်တာ — ပြောင်းစရာမလို
-- Burmese system prompt၊ voice ("Aoede")၊ tools အကုန် ယခုလို ဆက်သုံး
-
-## Technical Details
-
-**Ephemeral token endpoint** (Google's official Live API auth pattern):
-```ts
-const res = await fetch(
-  `https://generativelanguage.googleapis.com/v1alpha/auth_tokens?key=${GEMINI_API_KEY}`,
-  { method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      expireTime: new Date(Date.now() + 60_000).toISOString(),
-      newSessionExpireTime: new Date(Date.now() + 60_000).toISOString(),
-      bidiGenerateContentSetup: { model, generationConfig, systemInstruction, tools },
-      uses: 1,
-    })
-  });
-const { name } = await res.json(); // ephemeral token
 ```
 
-**Browser WS** (no proxy):
-```ts
-const ws = new WebSocket(
-  `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?access_token=${encodeURIComponent(name)}`
-);
+Return `0` when `active_total = 0`.
+
+### Attendance
+
+Unchanged.
+
+```sql
+attendance =
+((present + late * 0.5) / logged_days) * 100
+
 ```
 
-**Security:**
-- `GEMINI_API_KEY` က server မှာပဲရှိ — browser ကို ဘယ်တုန်းကမှ မရောက်
-- Ephemeral token က 60 seconds အတွင်းပဲ မှန် — leak ဖြစ်ရင်လည်း တန်ဖိုးမရှိ
-- Token mint တိုင်း Supabase auth စစ်တယ် — sign-in မဝင်ထားတဲ့သူ မရ
+Default:
 
-## အောင်မြင်ပြီးပါပြီလို့ ဘာနဲ့စစ်မလဲ
+```sql
+100
 
-1. Mic button နှိပ်တယ် → "Listening" status ပေါ်လာ (3 seconds အတွင်း)
-2. ဗမာစကားပြောတယ် → transcript text live ပေါ်လာ
-3. AI ပြန်ပြောတယ် → audio ထွက်လာ + transcript ပေါ်လာ
-4. "KPI ဘယ်လောက်လဲ" မေးတယ် → tool call run + ဖြေတယ်
-5. Console မှာ WebSocket 1006 closure မရှိ၊ probe error မရှိ
+```
 
-## အကျိုးကျေးဇူး
+when no attendance records exist.
 
-- ✅ **Works on Lovable Cloud** — WebSocketPair မလိုတော့ဘူး
-- ✅ **Lower latency** — middle hop ဖျက်လိုက်တာကြောင့် ~50-100ms ပိုမြန်
-- ✅ **Less code** — proxy route ~110 lines ဖျက်ပြီး token route ~40 lines နဲ့ အစားထိုး
-- ✅ **Google's recommended pattern** — production app တွေအတွက် official approach
-- ✅ **API key က server မှာပဲဆက်ရှိ** — security အတူတူ
+### Remove Completely
+
+Remove all KPI dependencies on:
+
+- Productivity
+- Quality
+- Peer Reviews
+
+Delete:
+
+```sql
+get_peer_avg()
+
+```
+
+and all related logic.
+
+---
+
+## KPI Formula
+
+### Objective Score
+
+```sql
+objective =
+(task_completion * 0.60) +
+(attendance * 0.40)
+
+```
+
+Weight = 100%
+
+### Final KPI
+
+When Team Leader rating exists:
+
+```sql
+kpi =
+(objective * 0.75) +
+(clamped_tl_rating * 0.25)
+
+```
+
+Keep existing TL clamp logic:
+
+```sql
+LEAST(tl_avg, objective_avg + 15)
+
+```
+
+When no TL rating exists:
+
+```sql
+kpi = objective
+
+```
+
+No normalization required.
+
+---
+
+## Trigger Cleanup
+
+Remove:
+
+```sql
+trg_peer_recompute
+
+```
+
+Remove:
+
+```sql
+public.get_peer_avg
+
+```
+
+Remove:
+
+```sql
+public.peer_reviews
+
+```
+
+including:
+
+- policies
+- grants
+- indexes
+- trigger chains
+
+Keep:
+
+- attendance triggers
+- task triggers
+- rating triggers
+- payroll sync
+
+---
+
+## Recompute Existing Data
+
+After deployment:
+
+```sql
+recompute_employee_kpi(...)
+
+```
+
+for the current period so all KPI records reflect the new formula.
+
+---
+
+# 2. Frontend — Remove Peer Reviews
+
+Delete all Peer Review functionality.
+
+### Remove Components
+
+```txt
+PeerReviewTab
+PeerRow
+PeerAggregates
+PeerPendingBadge
+
+```
+
+### Remove Functions
+
+```txt
+submitPeerReview
+peer review query helpers
+
+```
+
+### Remove From
+
+```txt
+operations.tsx
+team-leader.tsx
+assistant-dock.tsx
+ai-copilot.tsx
+ai-tools.ts
+
+```
+
+### Leaderboard
+
+Remove:
+
+```txt
+Peer Review column
+Peer Review badges
+Pending review indicators
+
+```
+
+---
+
+# 3. Frontend — Remove Productivity & Quality
+
+Remove Productivity and Quality from:
+
+### KPI Cards
+
+Delete:
+
+```txt
+Productivity
+Quality
+
+```
+
+### Dashboard Widgets
+
+Delete:
+
+```txt
+Productivity charts
+Productivity summaries
+Quality summaries
+Quality trend cards
+
+```
+
+### Leaderboard
+
+Remove:
+
+```txt
+Productivity column
+Quality column
+
+```
+
+Leaderboard should only show:
+
+```txt
+KPI
+Attendance
+Task Completion
+
+```
+
+### Data Fetching
+
+Remove:
+
+```txt
+productivity queries
+quality queries
+productivity state
+quality state
+
+```
+
+### AI Features
+
+Remove:
+
+```txt
+productivity insights
+quality recommendations
+productivity scoring prompts
+quality scoring prompts
+
+```
+
+---
+
+# 4. Unified Task & Feedback Workflow
+
+Replace:
+
+```txt
+Task Completion
+Team Leader Suggestion
+
+```
+
+with a single tab:
+
+```txt
+Task & Feedback
+
+```
+
+Flow:
+
+```txt
+Active Tasks
+      ↓
+Mark Complete
+      ↓
+TL Feedback
+      ↓
+Submit
+
+```
+
+### Team Member View
+
+Shows:
+
+- Active tasks
+- Latest TL feedback
+
+Read-only.
+
+### Team Leader View
+
+Can:
+
+- Review active tasks
+- Leave feedback
+- Submit rating
+
+in one workflow.
+
+---
+
+# 5. Out of Scope
+
+No changes to:
+
+- Payroll formulas
+- Promotion logic
+- Attendance deduction rules
+- Authentication
+- Team report schema
+- Member rating schema
+
+---
+
+# Technical Notes
+
+Migration order:
+
+```txt
+Drop Peer Review triggers
+↓
+Drop Peer Review functions
+↓
+Drop Peer Review table
+↓
+Recreate KPI function
+↓
+Recompute KPI records
+
+```
+
+Regenerate Supabase types after migration.
+
+No new environment variables.
+
+---
+
+# Files Touched
+
+```txt
+supabase/migrations/<new>.sql
+
+src/lib/teams.functions.ts
+
+src/components/team-detail-sheet.tsx
+
+src/routes/_authenticated/operations.tsx
+
+src/routes/_authenticated/team-leader.tsx
+
+src/components/assistant-dock.tsx
+
+src/components/ai-copilot.tsx
+
+src/lib/ai-tools.ts
+
+Leaderboard components
+Dashboard KPI widgets
+Analytics components
+
+```
+
+## Final User Journey
+
+```txt
+Active Tasks
+      ↓
+Task Completion
+      ↓
+Team Leader Feedback
+      ↓
+KPI Calculation
+      ↓
+Leaderboard
+
+```
+
+The system becomes simpler, easier to understand, and focused only on measurable work outcomes and leader evaluation.
