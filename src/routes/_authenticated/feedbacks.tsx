@@ -43,7 +43,7 @@ export const Route = createFileRoute("/_authenticated/feedbacks")({
   component: FeedbacksPage,
 });
 
-const DEPARTMENTS = ["engineering", "design", "operations", "sales", "marketing", "finance", "hr", "other"];
+const DEPARTMENTS = ["HR", "Operations", "Finance", "Admin", "Engineering"];
 
 function FeedbacksPage() {
   return (
@@ -82,7 +82,7 @@ function DirectoryTab() {
   const { data = [] } = useQuery({ queryKey: ["feedback-employees"], queryFn: () => listFn() });
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState({ full_name: "", department: "engineering", employee_code: "", phone_number: "", position: "Staff" });
+  const [form, setForm] = useState({ full_name: "", department: "Engineering", employee_code: "", phone_number: "", position: "Staff" });
 
   const save = useMutation({
     mutationFn: (payload: any) => upsertFn({ data: payload }),
@@ -96,14 +96,14 @@ function DirectoryTab() {
 
   function openNew() {
     setEditing(null);
-    setForm({ full_name: "", department: "engineering", employee_code: "", phone_number: "", position: "Staff" });
+    setForm({ full_name: "", department: "Engineering", employee_code: "", phone_number: "", position: "Staff" });
     setOpen(true);
   }
   function openEdit(emp: any) {
     setEditing(emp);
     setForm({
       full_name: emp.full_name ?? "",
-      department: emp.department ?? "engineering",
+      department: emp.department ?? "Engineering",
       employee_code: emp.employee_code ?? "",
       phone_number: emp.phone_number ?? "",
       position: emp.position ?? "Staff",
