@@ -1,44 +1,76 @@
-## Promotions tab simplification
 
-Focus the Promote dialog on level, position, salary, and reason. Remove every KPI-manipulation path end to end. Auto-fill salary from the org's `salary_bands` whenever the level changes, and reject salaries below the band minimum.
+## Goal
 
-### Frontend — `src/routes/_authenticated/financial.tsx`
+Turn the Financial → Promotions tab into a unified **Promotions & Demotions** workspace. Direction is inferred from the chosen level (higher = Promotion, lower = Demotion). KPI editing is fully removed. No backend, payroll, bonus, or KPI-calculation changes.
 
-1. **Remove the "Suggested promotions" banner**
-   - Delete the `suggestions` `useMemo` (lines 271–284) and the JSX block at lines 304–321.
-   - Drop the now-unused `Sparkles` import if nothing else uses it.
+## Scope
 
-2. **Rework `PromoteDialog`**
-   - Remove `kpiAdj` state, the KPI Adjustment label/badge/`Slider`/scale block (lines 523–541), and the `kpiAdjustment` field from the mutation payload.
-   - Drop the `Slider` import.
-   - Add salary auto-fill: when `level` changes (and on dialog open), set `salary` to `bands?.[level]?.min` if a band exists; otherwise keep the current employee salary as fallback. Track whether the value came from auto-fill so subsequent manual edits aren't overwritten on re-renders.
-   - Strengthen validation: `outOfBand` becomes a hard block when `salaryNum < band.min` (below-band → disable Save and show inline error). Above-band stays as an advisory message (no block) since the spec only forbids dropping below the minimum.
-   - `canSave` requires: trimmed reason, trimmed position, `salaryNum >= band.min` (if band known), and not pending.
+Only `src/routes/_authenticated/financial.tsx` (PromotionsTab + PromoteDialog). The existing `promoteEmployee` server fn and `promote_employee` RPC already accept any target level, so no migration is needed.
 
-3. **Field order in dialog**: Level → Position → Salary (with band hint + min-violation error) → Reason. Keep the read-only "current level / position / salary" summary at top.
+## Changes
 
-### Backend
+### 1. Tab rename & header
+- Rename trigger label from "Promotions" to "Promotions & Demotions" (route value stays `promotions`).
+- Section title updated inside `PromotionsTab`.
 
-4. **`src/lib/financial.functions.ts`** — drop `kpiAdjustment` from `promoteEmployee`'s input validator, the clamp logic, and the `_kpi_adjustment` RPC argument.
+### 2. Dashboard simplification
+Replace the 3-card KPI strip with two sections:
 
-5. **Migration** — new migration that:
-   - Redefines `public.promote_employee` without the `_kpi_adjustment` parameter (so the old 7-arg overload is gone; uses `DROP FUNCTION ... (uuid, employee_level, text, bigint, date, text, numeric)` first, then `CREATE OR REPLACE` with the 6-arg signature). New body skips the `v_adj` clamp and inserts `kpi_adjustment = 0` into `employee_promotions` to preserve the audit column and historical rows.
-   - Redefines `public.recompute_payroll` to ignore `employee_promotions.kpi_adjustment` (i.e. `v_effective_kpi := LEAST(100, GREATEST(0, v_kpi))`), so future payroll runs no longer apply slider adjustments. Historical `payroll_lines.kpi_snapshot` rows are left untouched.
-   - Keeps the `kpi_adjustment` column on `employee_promotions` so existing audit records remain readable; the column simply stops being written with non-zero values.
+**A. Promotion / Demotion tracking**
+- Promotions this quarter (count where `to_level` index > `from_level` index)
+- Demotions this quarter (count where `to_level` index < `from_level` index)
 
-### Audit / history
+**B. Financial Impact tracking**
+- Net salary delta this month (sum of `to_base_mmk - from_base_mmk`)
+- Promotion uplift this month (positive deltas only)
+- Demotion savings this month (negative deltas only, shown as absolute)
 
-6. Promotion rows continue to capture `from_level`, `to_level`, `from_position`, `to_position`, `from_base_mmk`, `to_base_mmk`, `note`, `effective_date`, `created_by` — nothing about that changes. The Promotion History expandable row in the table keeps rendering as-is.
+Remove the **Avg tenure** card entirely.
 
-### Validation & UX details
+### 3. Employee row actions
+- Replace the single "Promote" button with an "Adjust Level" button (disabled only when there are no other levels available — i.e. never, since 4 levels exist).
+- "History" entries label each row as **Promotion**, **Demotion**, or **Lateral** based on level index comparison.
 
-- Auto-fill triggers in a `useEffect` keyed on `level` and dialog open. A `manuallyEdited` ref flips to `true` on the first `onChange` of the salary input so the auto-fill effect only overrides when the user actively changed the level.
-- When the org has no `salary_bands` configured, fall back to the employee's existing salary on open and skip the min-check (no false blocks).
-- Inline error under the salary input when below band: "Below {Level} minimum ({formatMMKCompact(min)})". Save button disabled in that state.
-- Dialog stays responsive: existing `sm:max-w-md` + stacked fields already handle mobile.
+### 4. Dialog: rename + direction-aware behavior
+Rename `PromoteDialog` UI title to **Adjust Level — {name}**. Direction is computed from `LEVELS.indexOf(targetLevel) vs LEVELS.indexOf(currentLevel)`:
+- `> 0` → Promotion
+- `< 0` → Demotion
+- `= 0` → disabled save (must pick different level)
 
-### Out of scope
+Show a direction badge (Promotion / Demotion) in the dialog header.
 
-- No changes to `Bonus`, `Eligibility`, or KPI Calculation tabs.
-- No changes to `recompute_employee_kpi`.
-- No data backfill of `employee_promotions.kpi_adjustment` — historical values stay for audit transparency.
+### 5. Form fields (only these, in order)
+1. **Target Level** — segmented control (existing 4 levels). On change, recompute auto-salary unless user manually edited.
+2. **Target Position** — required text input.
+3. **Target Salary (MMK)** — number input. Auto-populate:
+   - Promotion → `bands[level].min`
+   - Demotion → `bands[level].max`
+   - Lateral (same level) → keep current base
+   - Once the user edits the field, set `manuallyEdited.current = true` so further level changes do **not** overwrite it. Reset flag only when the dialog reopens for a new employee.
+4. **Reason / Justification** — required textarea.
+
+Removed entirely: any KPI slider, KPI adjustment field, KPI override, KPI preview, suggested-promotion banner (already gone), and "above max" warning for promotions / "below min" warning for demotions are repurposed as hard validation.
+
+### 6. Validation (client-side, save disabled until all pass)
+- `position.trim().length > 0`
+- `reason.trim().length > 0`
+- `level !== emp.level`
+- Salary numeric and within band:
+  - Promotion: `salary >= band.min && salary <= band.max`
+  - Demotion: `salary <= band.max && salary >= band.min`
+- Inline error text under the salary field naming which bound was violated.
+
+Server validation already enforces non-empty reason; the salary-band guard stays client-side (no schema change requested).
+
+### 7. Save behavior
+Continue calling existing `promoteEmployee` server fn with the same payload shape. Toast message becomes "Promotion saved" or "Demotion saved" based on direction. No changes to optimistic update logic, invalidations, or payroll/bonus/KPI queries.
+
+## Non-Goals
+- No migration.
+- No edits to `promote_employee` RPC, `recompute_payroll`, KPI Calculation tab, Bonus tab, Payroll tab, or `employee_promotions` rows already stored.
+- No changes outside `financial.tsx`.
+
+## Technical Notes
+- `LEVELS` constant order in the file is `["trainee","junior","senior","lead"]` (assumed; will verify on first read during build). Direction comparison uses that index.
+- `bands` is `Record<EmployeeLevel, { min, max }>` from `organizations.salary_bands`. If a band is missing for the chosen level, fall back to current salary and show a muted "No band configured" hint, with save still gated on a positive number.
+- `manuallyEdited` ref is reset in the existing `useEffect(..., [emp, ...])` so reopening the dialog for a different employee re-enables auto-fill.
