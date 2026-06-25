@@ -12,7 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { initials } from "@/lib/format";
 import { toast } from "sonner";
 import { useHasRole } from "@/hooks/use-user-roles";
-import { createTeamLeader, listTeamLeaders, deleteTeamLeader } from "@/lib/admin-users.functions";
+import { createTeamLeader, listTeamLeaders, deleteTeamLeader, listEligibleEmployees } from "@/lib/admin-users.functions";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Crown, Trash2, UserPlus } from "lucide-react";
 
 
@@ -94,6 +95,7 @@ function TeamLeaderAdmin() {
   const listFn = useServerFn(listTeamLeaders);
   const createFn = useServerFn(createTeamLeader);
   const delFn = useServerFn(deleteTeamLeader);
+  const eligibleFn = useServerFn(listEligibleEmployees);
 
   const { data: leaders } = useQuery({
     queryKey: ["admin", "team-leaders"],
@@ -101,17 +103,25 @@ function TeamLeaderAdmin() {
     queryFn: () => listFn({ data: undefined as never }),
   });
 
+  const { data: eligible } = useQuery({
+    queryKey: ["admin", "eligible-employees"],
+    enabled: isAdmin,
+    queryFn: () => eligibleFn({ data: undefined as never }),
+  });
+
   const [open, setOpen] = useState(false);
-  const [email, setEmail] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
+
+  const selectedEmp = (eligible ?? []).find((e) => e.id === employeeId);
 
   const create = useMutation({
-    mutationFn: () => createFn({ data: { email, password, full_name: fullName } }),
+    mutationFn: () => createFn({ data: { employee_id: employeeId, password } }),
     onSuccess: () => {
       toast.success("Team Leader account created. Share the credentials privately.");
-      setEmail(""); setPassword(""); setFullName(""); setOpen(false);
+      setEmployeeId(""); setPassword(""); setOpen(false);
       qc.invalidateQueries({ queryKey: ["admin", "team-leaders"] });
+      qc.invalidateQueries({ queryKey: ["admin", "eligible-employees"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -121,11 +131,14 @@ function TeamLeaderAdmin() {
     onSuccess: () => {
       toast.success("Team Leader removed");
       qc.invalidateQueries({ queryKey: ["admin", "team-leaders"] });
+      qc.invalidateQueries({ queryKey: ["admin", "eligible-employees"] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   if (!isAdmin) return null;
+
+  const availableEmployees = (eligible ?? []).filter((e) => !e.taken);
 
   return (
     <div className="mt-8 max-w-3xl space-y-4 rounded-xl border border-border bg-card p-6">
@@ -136,8 +149,8 @@ function TeamLeaderAdmin() {
             <h2 className="font-display text-lg font-semibold tracking-tight">Team Leaders</h2>
           </div>
           <p className="mt-1 text-xs text-muted-foreground">
-            Admins create Team Leader accounts. Share the email and password privately (e.g. via your team chat).
-            Team Leaders only see the Team Leader Hub when they sign in.
+            Only existing company employees can be promoted to Team Leader. Pick an employee, set a temporary password,
+            and share the email and password privately (e.g. via your team chat).
           </p>
         </div>
         <Button size="sm" onClick={() => setOpen((v) => !v)}>
@@ -148,21 +161,34 @@ function TeamLeaderAdmin() {
       {open && (
         <div className="grid gap-3 rounded-lg border border-dashed border-border p-4 sm:grid-cols-2">
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="tl-name">Full name</Label>
-            <Input id="tl-name" value={fullName} onChange={(e) => setFullName(e.target.value)} placeholder="Aung Aung" />
+            <Label htmlFor="tl-emp">Employee</Label>
+            <Select value={employeeId} onValueChange={setEmployeeId}>
+              <SelectTrigger id="tl-emp">
+                <SelectValue placeholder={availableEmployees.length ? "Select an employee…" : "No eligible employees"} />
+              </SelectTrigger>
+              <SelectContent>
+                {availableEmployees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.full_name} — {e.email}
+                    {e.position ? ` · ${e.position}` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {selectedEmp && (
+              <div className="text-xs text-muted-foreground">
+                {selectedEmp.department ?? "—"} · {selectedEmp.position ?? "—"}
+              </div>
+            )}
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="tl-email">Email</Label>
-            <Input id="tl-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="leader@example.com" />
-          </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 sm:col-span-2">
             <Label htmlFor="tl-pass">Temporary password</Label>
             <Input id="tl-pass" type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="min 8 characters" />
           </div>
           <div className="sm:col-span-2 flex justify-end">
             <Button
               onClick={() => create.mutate()}
-              disabled={create.isPending || !email || password.length < 8 || !fullName.trim()}
+              disabled={create.isPending || !employeeId || password.length < 8}
             >
               Create account
             </Button>
