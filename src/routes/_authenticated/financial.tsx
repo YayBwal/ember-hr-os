@@ -72,7 +72,7 @@ function FinancialPage() {
         <Tabs defaultValue="payroll" className="mt-6">
           <TabsList>
             <TabsTrigger value="payroll">Payroll</TabsTrigger>
-            <TabsTrigger value="promotions">Promotions</TabsTrigger>
+            <TabsTrigger value="promotions">Promotions &amp; Demotions</TabsTrigger>
             <TabsTrigger value="kpi">KPI Calculation</TabsTrigger>
           </TabsList>
           <TabsContent value="payroll" className="mt-4"><PayrollTab /></TabsContent>
@@ -250,39 +250,63 @@ function PromotionsTab() {
   const lastPromotionFor = (empId: string) => promotions?.find((p) => p.employee_id === empId);
   const historyFor = (empId: string) => (promotions ?? []).filter((p) => p.employee_id === empId);
 
-  // KPI strip
+  // Tracking stats
   const stats = useMemo(() => {
     const now = new Date();
     const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1);
     const mStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const realPromos = (promotions ?? []).filter((p) => p.from_level !== null);
-    const promotedThisQuarter = realPromos.filter((p) => new Date(p.effective_date) >= qStart).length;
-    const deltaThisMonth = realPromos
-      .filter((p) => new Date(p.effective_date) >= mStart)
-      .reduce((s, p) => s + (p.to_base_mmk - (p.from_base_mmk ?? 0)), 0);
-    const tenures = (employees ?? [])
-      .filter((e) => e.join_date)
-      .map((e) => (Date.now() - new Date(e.join_date!).getTime()) / 86400000);
-    const avgTenure = tenures.length ? Math.round(tenures.reduce((a, b) => a + b, 0) / tenures.length) : 0;
-    return { promotedThisQuarter, deltaThisMonth, avgTenure };
-  }, [promotions, employees]);
+    const dir = (p: Promotion) => {
+      if (!p.from_level) return 0;
+      return LEVELS.indexOf(p.to_level) - LEVELS.indexOf(p.from_level);
+    };
+    const inQuarter = (promotions ?? []).filter((p) => new Date(p.effective_date) >= qStart);
+    const inMonth = (promotions ?? []).filter((p) => new Date(p.effective_date) >= mStart);
+    const promotionsQ = inQuarter.filter((p) => dir(p) > 0).length;
+    const demotionsQ = inQuarter.filter((p) => dir(p) < 0).length;
+    let netDelta = 0, uplift = 0, savings = 0;
+    for (const p of inMonth) {
+      const d = p.to_base_mmk - (p.from_base_mmk ?? 0);
+      netDelta += d;
+      if (d > 0) uplift += d;
+      else if (d < 0) savings += -d;
+    }
+    return { promotionsQ, demotionsQ, netDelta, uplift, savings };
+  }, [promotions]);
 
 
   return (
     <div>
-      {/* KPI strip */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Promoted this quarter</div>
-          <div className="mt-1 flex items-center gap-2 text-2xl font-semibold"><TrendingUp className="h-5 w-5 text-primary" />{stats.promotedThisQuarter}</div>
+      {/* Promotion / Demotion tracking */}
+      <div>
+        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Promotion / Demotion tracking</div>
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Promotions this quarter</div>
+            <div className="mt-1 flex items-center gap-2 text-2xl font-semibold"><TrendingUp className="h-5 w-5 text-primary" />{stats.promotionsQ}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Demotions this quarter</div>
+            <div className="mt-1 flex items-center gap-2 text-2xl font-semibold"><Minus className="h-5 w-5 text-muted-foreground" />{stats.demotionsQ}</div>
+          </div>
         </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Salary delta (this month)</div>
-          <div className="mt-1 text-2xl font-semibold">{formatMMKCompact(stats.deltaThisMonth)}</div>
-        </div>
-        <div className="rounded-xl border border-border bg-card p-4">
-          <div className="text-xs uppercase tracking-wider text-muted-foreground">Avg tenure</div>
-          <div className="mt-1 text-2xl font-semibold">{stats.avgTenure} days</div>
+      </div>
+
+      {/* Financial impact tracking */}
+      <div className="mt-5">
+        <div className="text-xs font-mono uppercase tracking-wider text-muted-foreground">Financial impact tracking</div>
+        <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Net salary delta (this month)</div>
+            <div className="mt-1 text-2xl font-semibold">{formatMMKCompact(stats.netDelta)}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Promotion uplift (this month)</div>
+            <div className="mt-1 text-2xl font-semibold text-primary">{formatMMKCompact(stats.uplift)}</div>
+          </div>
+          <div className="rounded-xl border border-border bg-card p-4">
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">Demotion savings (this month)</div>
+            <div className="mt-1 text-2xl font-semibold">{formatMMKCompact(stats.savings)}</div>
+          </div>
         </div>
       </div>
 
@@ -319,8 +343,8 @@ function PromotionsTab() {
                       <Button size="sm" variant="ghost" onClick={() => setExpanded(open ? null : e.id)}>
                         <History className="mr-1 h-3 w-3" /> History
                       </Button>
-                      <Button size="sm" onClick={() => setPromoting(e)} disabled={e.level === "lead"}>
-                        <TrendingUp className="mr-1 h-3 w-3" /> Promote
+                      <Button size="sm" onClick={() => setPromoting(e)}>
+                        <RefreshCw className="mr-1 h-3 w-3" /> Adjust Level
                       </Button>
                     </td>
                   </tr>
@@ -331,9 +355,13 @@ function PromotionsTab() {
                           <div className="text-xs text-muted-foreground">No history.</div>
                         ) : (
                           <ul className="space-y-1 text-xs">
-                            {historyFor(e.id).map((p) => (
+                            {historyFor(e.id).map((p) => {
+                              const diff = p.from_level ? LEVELS.indexOf(p.to_level) - LEVELS.indexOf(p.from_level) : 0;
+                              const kind = diff > 0 ? "Promotion" : diff < 0 ? "Demotion" : "Lateral";
+                              return (
                               <li key={p.id} className="flex flex-wrap items-center gap-2">
                                 <span className="text-muted-foreground">{new Date(p.effective_date).toLocaleDateString()}</span>
+                                <Badge variant={diff < 0 ? "outline" : "secondary"} className="text-[10px]">{kind}</Badge>
                                 <Badge variant="outline" className="text-[10px]">
                                   {p.from_level ? `${LEVEL_LABEL[p.from_level]} → ` : ""}{LEVEL_LABEL[p.to_level]}
                                 </Badge>
@@ -344,7 +372,8 @@ function PromotionsTab() {
                                 </span>
                                 {p.note && <span className="text-muted-foreground italic">· {p.note}</span>}
                               </li>
-                            ))}
+                              );
+                            })}
                           </ul>
                         )}
                       </td>
@@ -380,12 +409,15 @@ function PromoteDialog({
   qc: QueryClient;
   promote: ReturnType<typeof useServerFn<typeof promoteEmployee>>;
 }) {
-  const nextLevel: EmployeeLevel = useMemo(() => {
+  const currentLevel: EmployeeLevel = useMemo(() => {
     if (!emp) return "junior";
-    const current = emp.level === "mid" ? "junior" : emp.level;
-    const idx = LEVELS.indexOf(current as EmployeeLevel);
-    return LEVELS[Math.min(Math.max(idx, 0) + 1, LEVELS.length - 1)];
+    return (emp.level === "mid" ? "junior" : emp.level) as EmployeeLevel;
   }, [emp]);
+
+  const nextLevel: EmployeeLevel = useMemo(() => {
+    const idx = LEVELS.indexOf(currentLevel);
+    return LEVELS[Math.min(Math.max(idx, 0) + 1, LEVELS.length - 1)];
+  }, [currentLevel]);
 
   const [level, setLevel] = useState<EmployeeLevel>(nextLevel);
   const [salary, setSalary] = useState("");
@@ -393,22 +425,37 @@ function PromoteDialog({
   const [reason, setReason] = useState("");
   const manuallyEdited = useRef(false);
 
+  const direction = LEVELS.indexOf(level) - LEVELS.indexOf(currentLevel);
+  const isPromotion = direction > 0;
+  const isDemotion = direction < 0;
+
+  const autoSalaryFor = (lvl: EmployeeLevel): number | null => {
+    if (!emp) return null;
+    const b = bands?.[lvl];
+    const dir = LEVELS.indexOf(lvl) - LEVELS.indexOf(currentLevel);
+    if (dir > 0) return b?.min && b.min > 0 ? b.min : null;
+    if (dir < 0) return b?.max && b.max > 0 ? b.max : null;
+    return emp.monthly_base_mmk;
+  };
+
   useEffect(() => {
     if (emp) {
       setLevel(nextLevel);
       setPosition(emp.position);
       setReason("");
       manuallyEdited.current = false;
-      const bandMin = bands?.[nextLevel]?.min;
-      setSalary(String(bandMin && bandMin > 0 ? bandMin : emp.monthly_base_mmk));
+      const auto = autoSalaryFor(nextLevel);
+      setSalary(String(auto && auto > 0 ? auto : emp.monthly_base_mmk));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [emp, nextLevel, bands]);
 
   // Auto-fill salary when level changes (unless user manually edited)
   useEffect(() => {
     if (!emp || manuallyEdited.current) return;
-    const bandMin = bands?.[level]?.min;
-    if (bandMin && bandMin > 0) setSalary(String(bandMin));
+    const auto = autoSalaryFor(level);
+    if (auto && auto > 0) setSalary(String(auto));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [level, bands, emp]);
 
   const mut = useMutation({
@@ -426,7 +473,10 @@ function PromoteDialog({
       if (ctx?.prevEmps) qc.setQueryData(["employees_fin"], ctx.prevEmps);
       toast.error(e.message);
     },
-    onSuccess: () => { toast.success("Promotion saved"); onClose(); },
+    onSuccess: () => {
+      toast.success(isDemotion ? "Demotion saved" : "Promotion saved");
+      onClose();
+    },
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ["employees_fin"] });
       qc.invalidateQueries({ queryKey: ["promotions"] });
@@ -438,9 +488,26 @@ function PromoteDialog({
   if (!emp) return null;
   const band = bands?.[level];
   const salaryNum = Number(salary);
-  const belowMin = !!band && salaryNum > 0 && salaryNum < band.min;
-  const aboveMax = !!band && salaryNum > band.max;
-  const canSave = reason.trim().length > 0 && salaryNum > 0 && position.trim().length > 0 && !belowMin && !mut.isPending;
+  const positiveSalary = salaryNum > 0;
+  const belowMin = !!band && positiveSalary && salaryNum < band.min;
+  const aboveMax = !!band && positiveSalary && salaryNum > band.max;
+
+  let salaryError: string | null = null;
+  if (!positiveSalary) salaryError = "Salary required";
+  else if (band) {
+    if (isPromotion && belowMin) salaryError = `Promotion salary must be ≥ ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`;
+    else if (isPromotion && aboveMax) salaryError = `Above ${LEVEL_LABEL[level]} maximum (${formatMMKCompact(band.max)})`;
+    else if (isDemotion && aboveMax) salaryError = `Demotion salary must be ≤ ${LEVEL_LABEL[level]} maximum (${formatMMKCompact(band.max)})`;
+    else if (isDemotion && belowMin) salaryError = `Below ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`;
+  }
+
+  const sameLevel = direction === 0;
+  const canSave =
+    !sameLevel &&
+    reason.trim().length > 0 &&
+    position.trim().length > 0 &&
+    !salaryError &&
+    !mut.isPending;
 
   const save = () => {
     if (!canSave) return;
@@ -457,7 +524,11 @@ function PromoteDialog({
     <Dialog open={!!emp} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Promote {emp.full_name}</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            Adjust Level — {emp.full_name}
+            {isPromotion && <Badge className="bg-primary/15 text-primary hover:bg-primary/15">Promotion</Badge>}
+            {isDemotion && <Badge variant="outline">Demotion</Badge>}
+          </DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -465,7 +536,7 @@ function PromoteDialog({
           </div>
 
           <div>
-            <Label className="text-xs">Level</Label>
+            <Label className="text-xs">Target Level</Label>
             <div className="mt-1 grid grid-cols-4 gap-1 rounded-md border border-border bg-muted/30 p-1">
               {LEVELS.map((l) => (
                 <button
@@ -478,36 +549,41 @@ function PromoteDialog({
                 </button>
               ))}
             </div>
+            {sameLevel && (
+              <div className="mt-1 text-xs text-muted-foreground">Pick a different level to record a promotion or demotion.</div>
+            )}
           </div>
 
           <div>
-            <Label className="text-xs">Position <span className="text-destructive">*</span></Label>
+            <Label className="text-xs">Target Position <span className="text-destructive">*</span></Label>
             <Input value={position} onChange={(e) => setPosition(e.target.value)} placeholder="e.g. Senior Engineer" />
           </div>
 
           <div>
-            <Label className="text-xs">Salary (MMK)</Label>
+            <Label className="text-xs">Target Salary (MMK) <span className="text-destructive">*</span></Label>
             <Input
               type="number"
               value={salary}
               onChange={(e) => { manuallyEdited.current = true; setSalary(e.target.value); }}
             />
-            {band && (
-              <div className={`mt-1 text-xs ${belowMin ? "text-destructive" : "text-muted-foreground"}`}>
-                {belowMin
-                  ? `Below ${LEVEL_LABEL[level]} minimum (${formatMMKCompact(band.min)})`
-                  : <>Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}{aboveMax && " · above max"}</>}
+            {salaryError ? (
+              <div className="mt-1 text-xs text-destructive">{salaryError}</div>
+            ) : band ? (
+              <div className="mt-1 text-xs text-muted-foreground">
+                Band: {formatMMKCompact(band.min)} – {formatMMKCompact(band.max)}
               </div>
+            ) : (
+              <div className="mt-1 text-xs text-muted-foreground">No salary band configured for {LEVEL_LABEL[level]}.</div>
             )}
           </div>
 
           <div>
-            <Label className="text-xs">Reason <span className="text-destructive">*</span></Label>
+            <Label className="text-xs">Reason / Justification <span className="text-destructive">*</span></Label>
             <Textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
-              placeholder="Justification for this promotion"
+              placeholder={isDemotion ? "Justification for this demotion" : "Justification for this promotion"}
             />
           </div>
         </div>
