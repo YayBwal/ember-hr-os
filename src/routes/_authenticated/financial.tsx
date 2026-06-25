@@ -343,8 +343,8 @@ function PromotionsTab() {
                       <Button size="sm" variant="ghost" onClick={() => setExpanded(open ? null : e.id)}>
                         <History className="mr-1 h-3 w-3" /> History
                       </Button>
-                      <Button size="sm" onClick={() => setPromoting(e)} disabled={e.level === "lead"}>
-                        <TrendingUp className="mr-1 h-3 w-3" /> Promote
+                      <Button size="sm" onClick={() => setPromoting(e)}>
+                        <RefreshCw className="mr-1 h-3 w-3" /> Adjust Level
                       </Button>
                     </td>
                   </tr>
