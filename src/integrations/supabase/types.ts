@@ -238,8 +238,10 @@ export type Database = {
           from_level: Database["public"]["Enums"]["employee_level"] | null
           from_position: string | null
           id: string
+          kpi_adjustment: number
           note: string | null
           org_id: string
+          period_month: string | null
           to_base_mmk: number
           to_level: Database["public"]["Enums"]["employee_level"]
           to_position: string
@@ -253,8 +255,10 @@ export type Database = {
           from_level?: Database["public"]["Enums"]["employee_level"] | null
           from_position?: string | null
           id?: string
+          kpi_adjustment?: number
           note?: string | null
           org_id: string
+          period_month?: string | null
           to_base_mmk: number
           to_level: Database["public"]["Enums"]["employee_level"]
           to_position: string
@@ -268,8 +272,10 @@ export type Database = {
           from_level?: Database["public"]["Enums"]["employee_level"] | null
           from_position?: string | null
           id?: string
+          kpi_adjustment?: number
           note?: string | null
           org_id?: string
+          period_month?: string | null
           to_base_mmk?: number
           to_level?: Database["public"]["Enums"]["employee_level"]
           to_position?: string
@@ -1082,17 +1088,30 @@ export type Database = {
         }
         Returns: boolean
       }
-      promote_employee: {
-        Args: {
-          _effective_date?: string
-          _employee_id: string
-          _note?: string
-          _to_base_mmk: number
-          _to_level: Database["public"]["Enums"]["employee_level"]
-          _to_position: string
-        }
-        Returns: string
-      }
+      promote_employee:
+        | {
+            Args: {
+              _effective_date?: string
+              _employee_id: string
+              _note?: string
+              _to_base_mmk: number
+              _to_level: Database["public"]["Enums"]["employee_level"]
+              _to_position: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              _effective_date?: string
+              _employee_id: string
+              _kpi_adjustment?: number
+              _note?: string
+              _to_base_mmk: number
+              _to_level: Database["public"]["Enums"]["employee_level"]
+              _to_position: string
+            }
+            Returns: string
+          }
       recompute_employee_kpi: {
         Args: { _employee_id: string; _period: string }
         Returns: undefined
@@ -1122,7 +1141,7 @@ export type Database = {
         | "hired"
         | "rejected"
       department: "HR" | "Operations" | "Finance" | "Admin" | "Engineering"
-      employee_level: "junior" | "mid" | "senior" | "lead"
+      employee_level: "trainee" | "junior" | "mid" | "senior" | "lead"
       meeting_status:
         | "uploaded"
         | "transcribing"
@@ -1274,7 +1293,7 @@ export const Constants = {
         "rejected",
       ],
       department: ["HR", "Operations", "Finance", "Admin", "Engineering"],
-      employee_level: ["junior", "mid", "senior", "lead"],
+      employee_level: ["trainee", "junior", "mid", "senior", "lead"],
       meeting_status: [
         "uploaded",
         "transcribing",
