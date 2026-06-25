@@ -44,8 +44,10 @@ export const runPayroll = createServerFn({ method: "POST" })
     const { data: emps, error } = await context.supabase.from("employees").select("id");
     if (error) throw new Error(error.message);
     for (const e of emps ?? []) {
-      await context.supabase.rpc("recompute_employee_kpi", { _employee_id: e.id, _period: period });
-      await context.supabase.rpc("recompute_payroll", { _employee_id: e.id, _period: period });
+      const { error: kErr } = await context.supabase.rpc("recompute_employee_kpi", { _employee_id: e.id, _period: period });
+      if (kErr) throw new Error(`KPI recompute failed for ${e.id}: ${kErr.message}`);
+      const { error: pErr } = await context.supabase.rpc("recompute_payroll", { _employee_id: e.id, _period: period });
+      if (pErr) throw new Error(`Payroll recompute failed for ${e.id}: ${pErr.message}`);
     }
     return { ok: true, count: emps?.length ?? 0 };
   });
