@@ -237,11 +237,19 @@ export class GeminiLiveSession {
     };
 
     ws.onerror = () => {
-      this.emit({ type: "error", message: "Connection error" });
+      this.emit({ type: "error", message: "Voice connection error. Switch to Chat mode if it persists." });
       this.setStatus("error");
     };
-    ws.onclose = () => {
-      if (!this.closed) this.setStatus("idle");
+    ws.onclose = (ev) => {
+      if (this.closed) return;
+      // 1000 = normal. Anything else with a reason → surface it so user knows why.
+      if (ev.code !== 1000 && ev.code !== 1005) {
+        const reason = ev.reason || `WebSocket closed (code ${ev.code})`;
+        this.emit({ type: "error", message: reason });
+        this.setStatus("error");
+      } else {
+        this.setStatus("idle");
+      }
     };
   }
 
