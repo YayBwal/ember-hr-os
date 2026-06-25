@@ -29,6 +29,7 @@ interface ParsedCv {
   ai_match_score: number;
   summary: string;
   next_action: string;
+  cv_storage_path: string | null;
 }
 
 function isParseInput(v: unknown): v is ParseInput {
@@ -60,6 +61,23 @@ export const parseCv = createServerFn({ method: "POST" })
     const cleanBase64 = data.fileBase64.replace(/^data:[^;]+;base64,/, "").replace(/\s+/g, "");
     if (cleanBase64.length < 100) {
       throw new Error("Uploaded file is empty or unreadable");
+    }
+
+    // Upload original PDF to storage so HR can view it later (best-effort).
+    let cv_storage_path: string | null = null;
+    if (data.mime === "application/pdf") {
+      try {
+        const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+        const { randomUUID } = await import("crypto");
+        const path = `hr-upload/${randomUUID()}.pdf`;
+        const bytes = Buffer.from(cleanBase64, "base64");
+        const { error } = await supabaseAdmin.storage
+          .from("candidate-cvs")
+          .upload(path, bytes, { contentType: "application/pdf", upsert: false });
+        if (!error) cv_storage_path = path;
+      } catch (e) {
+        console.error("cv storage upload failed", e);
+      }
     }
     // ~20 MB base64 cap — Gemini rejects very large inline files.
     if (cleanBase64.length > 20 * 1024 * 1024) {
@@ -141,6 +159,7 @@ export const parseCv = createServerFn({ method: "POST" })
       ai_match_score: Math.max(0, Math.min(100, Math.round(Number(parsed.ai_match_score ?? 0)))),
       summary: String(parsed.summary ?? ""),
       next_action: String(parsed.next_action ?? "Schedule initial screening"),
+      cv_storage_path,
     };
   });
 

@@ -19,9 +19,10 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare, PauseCircle, Undo2, Send, Eye } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare, PauseCircle, Undo2, Send, Eye, MessageCircle } from "lucide-react";
 import { parseCv, scoreManual, analyzeCandidate, compareCandidates, type DeepAnalysis, type ComparisonResult } from "@/lib/pipeline.functions";
 import { getCvSignedUrl } from "@/lib/cv-intake.functions";
+import { notifyCandidate } from "@/lib/candidate-notify.functions";
 import { approveCandidate } from "@/lib/operations.functions";
 import { ROLE_PRESETS } from "@/lib/roles";
 
@@ -62,6 +63,7 @@ type Candidate = {
   held_at: string | null;
   source: string | null;
   cv_storage_path: string | null;
+  telegram_chat_id: number | null;
 };
 
 const PAGE_SIZE = 25;
@@ -72,6 +74,7 @@ function PipelinePage() {
   const [approving, setApproving] = useState<Candidate | null>(null);
   const [holding, setHolding] = useState<Candidate[] | null>(null);
   const [analyzeId, setAnalyzeId] = useState<Candidate | null>(null);
+  const [notifying, setNotifying] = useState<Candidate | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const { q, stage: stageParam } = Route.useSearch();
   const navigate = Route.useNavigate();
@@ -102,7 +105,7 @@ function PipelinePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk, hold_reason, held_at, source, cv_storage_path")
+        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk, hold_reason, held_at, source, cv_storage_path, telegram_chat_id")
         .order("ai_match_score", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Candidate[];
@@ -467,6 +470,15 @@ function PipelinePage() {
                   >
                     <Brain className="h-3 w-3" />
                   </button>
+                  {c.telegram_chat_id && (
+                    <button
+                      onClick={() => setNotifying(c)}
+                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-sky-500/40 hover:text-sky-600"
+                      title="Notify candidate via Telegram"
+                    >
+                      <MessageCircle className="h-3 w-3" />
+                    </button>
+                  )}
                   {c.status === "screening" && (
                     <button
                       onClick={() => advanceOne(c)}
@@ -557,6 +569,7 @@ function PipelinePage() {
         onConfirm={(reason) => holdMut.mutate({ ids: (holding ?? []).map((c) => c.id), reason })}
         pending={holdMut.isPending}
       />
+      <NotifyDialog candidate={notifying} onClose={() => setNotifying(null)} />
     </AppShell>
   );
 }
@@ -704,6 +717,7 @@ function AddCandidateDialog({
               skills: parsed.skills,
               next_action: parsed.next_action,
               notes: parsed.summary || null,
+              cv_storage_path: parsed.cv_storage_path,
             });
             if (error) throw error;
             okCount += 1;
@@ -1157,6 +1171,95 @@ function CompareDialog({
         )}
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+const NOTIFY_TEMPLATES: { label: string; body: (c: { full_name: string; role_applied: string }) => string }[] = [
+  {
+    label: "Invite to interview",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, thanks for applying for ${c.role_applied}. We'd like to invite you to an interview. Please reply with a few time slots that work for you.`,
+  },
+  {
+    label: "You're hired 🎉",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, congratulations! We'd like to offer you the ${c.role_applied} position at Mandai. Our HR team will reach out shortly with next steps.`,
+  },
+  {
+    label: "On hold / talent pool",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, thanks for applying for ${c.role_applied}. The role is currently filled, but we'd like to keep your profile in our talent pool and reach out when something fits.`,
+  },
+  {
+    label: "Not selected",
+    body: (c) =>
+      `Hi ${c.full_name.split(" ")[0] ?? "there"}, thanks for applying for ${c.role_applied}. After review we won't be moving forward this time. We wish you the best and encourage you to apply again in the future.`,
+  },
+];
+
+function NotifyDialog({ candidate, onClose }: { candidate: Candidate | null; onClose: () => void }) {
+  const notify = useServerFn(notifyCandidate);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (candidate) setMessage(NOTIFY_TEMPLATES[0].body(candidate));
+    else setMessage("");
+  }, [candidate]);
+
+  async function send() {
+    if (!candidate || !message.trim()) return;
+    setBusy(true);
+    try {
+      await notify({ data: { candidate_id: candidate.id, message } });
+      toast.success(`Message sent to ${candidate.full_name}`);
+      onClose();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!candidate} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle>Notify {candidate?.full_name}</DialogTitle>
+          <DialogDescription>
+            Sends a Telegram message directly to the candidate. Pick a template or write your own.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {NOTIFY_TEMPLATES.map((t) => (
+              <Button
+                key={t.label}
+                size="sm"
+                variant="outline"
+                onClick={() => candidate && setMessage(t.body(candidate))}
+                disabled={busy}
+              >
+                {t.label}
+              </Button>
+            ))}
+          </div>
+          <Textarea
+            rows={6}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type your message…"
+          />
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button onClick={send} disabled={busy || !message.trim()} className="gap-2">
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Send via Telegram
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
