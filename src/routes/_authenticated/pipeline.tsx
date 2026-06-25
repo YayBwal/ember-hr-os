@@ -19,8 +19,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2 } from "lucide-react";
-import { parseCv, scoreManual } from "@/lib/pipeline.functions";
+import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare } from "lucide-react";
+import { parseCv, scoreManual, analyzeCandidate, compareCandidates, type DeepAnalysis, type ComparisonResult } from "@/lib/pipeline.functions";
 import { approveCandidate } from "@/lib/operations.functions";
 
 export const Route = createFileRoute("/_authenticated/pipeline")({
