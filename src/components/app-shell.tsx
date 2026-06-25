@@ -164,15 +164,13 @@ function Sidebar({
   collapsed,
   onToggle,
   role,
-  onRoleChange,
   profile,
   org,
   onSignOut,
 }: {
   collapsed: boolean;
   onToggle: () => void;
-  role: Role;
-  onRoleChange: (r: Role) => void;
+  role: EffectiveRole;
   profile: Profile | null | undefined;
   org: Org | null | undefined;
   onSignOut: () => void;
@@ -226,28 +224,6 @@ function Sidebar({
       </nav>
 
       <div className="border-t border-sidebar-border p-2 space-y-1">
-        {!collapsed && (
-          <button
-            onClick={() => onRoleChange("Team Leader")}
-            className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            title="Switch to Team Leader view"
-          >
-            <Crown className="h-3.5 w-3.5 text-amber-500" />
-            <span>Switch to Team Leader</span>
-          </button>
-        )}
-        {collapsed && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={() => onRoleChange("Team Leader")}
-            title="Switch to Team Leader"
-          >
-            <Crown className="h-4 w-4 text-amber-500" />
-          </Button>
-        )}
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-sidebar-accent">
@@ -259,7 +235,7 @@ function Sidebar({
               {!collapsed && (
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-xs font-medium">{profile?.full_name ?? "Account"}</div>
-                  <div className="truncate text-[10px] text-muted-foreground">{role}</div>
+                  <div className="truncate text-[10px] text-muted-foreground">Admin</div>
                 </div>
               )}
             </button>
@@ -267,16 +243,13 @@ function Sidebar({
           <DropdownMenuContent align="end" side="top" className="w-56">
             <DropdownMenuLabel>
               <div className="font-medium">{profile?.full_name ?? "Member"}</div>
-              <div className="text-xs text-muted-foreground">{org?.name}</div>
+              <div className="text-xs text-muted-foreground">{org?.name} · Admin</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link to="/settings" className="flex items-center gap-2">
                 <Settings className="h-4 w-4" /> Settings
               </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onRoleChange(role === "HR" ? "Team Leader" : "HR")}>
-              <UserCog className="mr-2 h-4 w-4" /> Switch role
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <div className="px-2 py-1.5"><ThemeToggle /></div>
@@ -293,13 +266,11 @@ function Sidebar({
 
 function FloatingAccount({
   role,
-  onRoleChange,
   profile,
   org,
   onSignOut,
 }: {
-  role: Role;
-  onRoleChange: (r: Role) => void;
+  role: EffectiveRole;
   profile: Profile | null | undefined;
   org: Org | null | undefined;
   onSignOut: () => void;
@@ -323,8 +294,10 @@ function FloatingAccount({
             <div className="text-xs text-muted-foreground">{org?.name} · {role}</div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={() => onRoleChange("HR")}>
-            <UserCog className="mr-2 h-4 w-4" /> Switch to HR
+          <DropdownMenuItem asChild>
+            <Link to="/settings" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" /> Settings
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <div className="px-2 py-1.5"><ThemeToggle /></div>
@@ -337,3 +310,4 @@ function FloatingAccount({
     </div>
   );
 }
+
