@@ -637,7 +637,7 @@ function AddCandidateDialog({
   const scoreManualFn = useServerFn(scoreManual);
 
   const [tab, setTab] = useState<"upload" | "manual">("upload");
-  const [role, setRole] = useState(ROLE_PRESETS[0]);
+  const [role, setRole] = useState<string>(ROLE_PRESETS[0]);
   const [customRole, setCustomRole] = useState("");
   const finalRole = role === "__custom__" ? customRole.trim() : role;
 
