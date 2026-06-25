@@ -1,56 +1,111 @@
-# AI Assistant Upgrade Plan
+# Phase 2 — Gemini Multimodal Live S2S Upgrade Plan
 
-Targeted upgrade in 4 small, isolated PRs. Voice assistant stays as-is; we extend its tool catalog and add a new text Copilot panel that shares the same tool layer.
+## ⚠️ မစတင်ခင် သိထားရမယ့် အရေးကြီး အချက် ၂ ခု
 
-## PR 1 — Shared AI tools layer (data access)
+### 1. မြန်မာစကား ပြန်ပြောနိုင်မလား?
 
-Create `src/lib/ai-tools.functions.ts` exposing one `createServerFn` per tool (auth-protected via `requireSupabaseAuth`, scoped by `current_org_id`). Each tool returns compact JSON.
+**တိုက်ရိုက်အဖြေ — အပြည့်အဝ မရပါ (ယခုလောလောဆယ်)**
 
-Tools:
-- `kpi_ranking` — lowest/highest KPI this month. Reads `employee_kpis` joined with `employees`. Args: `{ direction: "lowest"|"highest", limit?: number, period?: YYYY-MM }`.
-- `bonus_totals` — total bonuses paid. Reads `bonuses` + `payroll_lines.performance_bonus_mmk`. Args: `{ period?, employee_id? }`.
-- `payroll_summary` — monthly payroll breakdown per employee. Reads `payroll_runs` + `payroll_lines`. Args: `{ period?: YYYY-MM }`. Returns total, per-employee rows (base, perf bonus, bonus, deduction, total, KPI).
-- `attendance_summary` — present/late/absent counts. Args: `{ period?, employee_id? }`.
-- `team_overview` — teams + member counts + avg KPI.
-- `candidate_lookup` — already exists in voice; reuse same query.
+- Gemini Live API ရဲ့ **native audio output** က language ~24 ခုပဲ တရားဝင် support လုပ်ပါတယ် — အဲ့ထဲမှာ **မြန်မာစကား မပါသေး**ပါ။ (en, ja, ko, hi, id, vi, th, zh စတာတွေ ပါတယ်)
+- **Input (နားထောင်တာ)** ဘက်ကတော့ မြန်မာစကား **နားလည်နိုင်ပါတယ်** — Gemini က Burmese text/audio understanding ရှိပါတယ်။
+- ဒါကြောင့် Multimodal Live ကို တိုက်ရိုက်သုံးရင် —
+  - User က မြန်မာလို ပြောတာ → AI က နားလည်တယ် ✅
+  - AI က ပြန်ပြောတဲ့ အသံကတော့ **အင်္ဂလိပ်/တရုတ်/ထိုင်း လေသံနဲ့ မြန်မာစာ ဖတ်တာ** ဖြစ်လာနိုင်တယ် (ဆိုးတယ်) ❌
 
-All tools return `{ ok, period, rows, totals }` JSON shape and are designed to be small enough to inline in a chat answer.
+**ဖြေရှင်းနည်း ၃ ခု (ရွေးခိုင်းပါမယ်):**
 
-## PR 2 — Refactor voice + add Text Copilot panel
 
-- Extract the chat loop in `voice.functions.ts` into a shared `runAiChat({ messages, mode })` helper that dispatches the full tool set above plus `navigate`.
-- `voice.functions.ts` calls it with `mode: "voice"` (system prompt: 1–2 sentences, no markdown).
-- New `copilot.functions.ts` calls it with `mode: "text"` (system prompt: full answers with markdown, tables OK, charts described as JSON block the UI can render).
-- New `src/components/ai-copilot.tsx` — slide-in side panel (right edge, toggle button next to voice mic):
-  - Message list with markdown rendering (react-markdown — already used elsewhere? add if not).
-  - Tool-call results rendered as compact tables (payroll, KPI ranking).
-  - Optional chart rendering: when tool returns `chart: { type, data }`, render a recharts bar/line chart inline (recharts already in stack).
-  - Input + send. Keeps full conversation in component state (one conversation, no persistence — matches current voice pattern).
-- Mounted globally in `app-shell.tsx` alongside `<VoiceAssistant />`.
+| Option                                                                       | Latency     | မြန်မာအသံ အရည်အသွေး          | Cost     |
+| ---------------------------------------------------------------------------- | ----------- | ---------------------------- | -------- |
+| **A. Pure S2S (Gemini Live native audio)**                                   | ~300ms      | ညံ့ (မြန်မာအသံ မရိုးသား)     | သက်သာ    |
+| **B. Hybrid — Live API audio-in + text-out → Burmese TTS**                   | ~700ms–1.2s | သင့်တင့် (လက်ရှိထက် တိုးတက်) | အလယ်အလတ် |
+| **C. လက်ရှိ cascade ထား၊ STT ကိုသာ Gemini audio understanding နဲ့ အစားထိုး** | ~2s         | လက်ရှိ TTS အတိုင်း           | သက်သာ    |
 
-## PR 3 — CV deep analyzer + comparison
 
-- Extend `pipeline.functions.ts`:
-  - New `analyzeCandidate(candidate_id)` — LLM call returning structured JSON: `{ strengths[], gaps[], red_flags[], role_fit_reasoning, interview_questions[], recommended_decision }`. Stored in `candidates.notes` JSON sidecar (or new column `ai_analysis jsonb` via migration if approved).
-  - New `compareCandidates(ids: string[])` — LLM call comparing 2–3 candidates side by side for a role. Returns `{ summary, rows: [{candidate, strengths, gaps, verdict}], winner }`.
-- UI: add "AI Analysis" tab to candidate detail in `pipeline.tsx` showing structured sections; add a "Compare" action when 2–3 candidates are selected, opening a modal with side-by-side cards.
+ကျွန်တော် အကြံပြုချင်တာက **Option B** — မြန်မာစကားအတွက် S2S ရဲ့ latency အကျိုးကျေးဇူး ၇၀% ရပြီး အသံအရည်အသွေး မပျက်ပါ။
 
-(Migration only if user approves adding `ai_analysis jsonb` to `candidates`; otherwise reuse `notes`.)
+### 2. Infrastructure ပြောင်းရမှု
 
-## PR 4 — Analytics surface
+လက်ရှိ voice ကို ကြည့်တော့ **LiveKit token endpoint ရှိပေမယ့် browser က LiveKit ကို သုံးမနေပါ** — `voice-assistant.tsx` က Web Speech API (browser STT) + `voiceChat` serverFn (Gemini text) + browser `speechSynthesis` (TTS) ပဲ ဖြစ်ပါတယ်။
 
-- `payroll_summary` and `kpi_ranking` tools become reachable from the Copilot as both inline tables and a small chart block (bar chart of total payroll by month, top/bottom KPI bars).
-- No CSV/Excel/PDF export yet (still deferred per roadmap).
+Multimodal Live ကို LiveKit `MultimodalAgent` + `google.RealtimeModel` နဲ့ run ဖို့ဆိုရင် —
 
-## Out of scope
-- LiveKit data-channel migration (current voice runs on Web Speech API; switching transport is a separate, larger PR).
-- Schema redesign, multi-org changes, payroll computation logic.
-- Realtime streaming of assistant tokens — text Copilot uses request/response, matching the voice loop. Streaming can come in a later PR.
+- **LiveKit Agent worker (Python သို့ Node)** ကို သီးခြား deploy လုပ်ရပါမယ်။
+- TanStack Start က Cloudflare Worker ပေါ်မှာ run နေတာမို့ Agent worker ကို **Worker ထဲမှာ run လို့ မရပါ** (long-lived process လိုတယ်)။
+- Fly.io / Render / Railway / Cloud Run ပေါ်မှာ container တစ်ခု သီးခြားလို ဖြစ်ပါမယ်။
 
-## Technical notes
-- All new server fns use `createServerFn` + `requireSupabaseAuth`; RLS already scopes data to the user's org.
-- Model: `google/gemini-2.5-flash` (same as voice) for tool-calling; analyzer/compare use `google/gemini-2.5-pro` for quality.
-- Tool results are clipped to ≤50 rows per call to stay under token limits.
-- Text Copilot reuses the existing voice `runAiChat` loop, so a bug-fix in one fixes both.
+အကယ်၍ extra service မထည့်ချင်ဘူးဆိုရင် — **WebSocket တိုက်ရိုက် Gemini Live API နဲ့ ချိတ်တဲ့ နည်း** လည်း ရှိပါတယ် (LiveKit လုံးဝ မလို၊ ဒါပေမဲ့ interruption handling/VAD ကိုယ်တိုင် ရေးရတယ်)။
 
-Approve and I'll ship PR 1 first, then verify with `tsgo` before moving on.
+---
+
+## ထို့ကြောင့် ပြန်လည် မေးချင်ပါတယ်
+
+ဆုံးဖြတ်ချက် ၂ ခု လိုပါတယ်:
+
+**မေး ၁ — Voice output အရည်အသွေး vs latency:**
+
+- **A.** Gemini Live native audio (~300ms၊ ဒါပေမဲ့ မြန်မာ accent ဆိုးနိုင်) (A သုံးမယ်)
+- **B.** Hybrid: Live audio-in + Burmese TTS out (~700ms၊ မြန်မာ accent ကောင်း) ← **အကြံပြု**
+- **C.** STT သာ upgrade၊ ကျန်တာ မပြောင်း
+
+**မေး ၂ — Infrastructure:**
+
+- **X.** LiveKit Agent worker အသစ် deploy (Fly.io/Render) — official, robust၊ ဒါပေမဲ့ service တစ်ခု ထပ်ထည့်ရ
+- **Y.** Browser ကနေ Gemini Live WebSocket တိုက်ရိုက်ခေါ် (server က ephemeral token ထုတ်ပေး) — service အသစ် မလို၊ feature နည်း
+- **Z.** TanStack server function ထဲက relay (Cloudflare Worker WebSocket) — middle ground
+
+---
+
+## အကြံပြုထားတဲ့ Plan (B + Y combo) 
+
+ထောက်ခံချက် မရသေးခင် implementation မလုပ်ပါ။ Approve ပြီးမှ အောက်ပါအတိုင်း လုပ်ပါမယ်:
+
+### Step 1 — Server: Ephemeral token endpoint
+
+`src/routes/api/gemini-live-token.ts` — auth-checked, short-lived Gemini Live API access token ထုတ်ပေး (LOVABLE_API_KEY ကို browser ကို မပေါ်စေဖို့)
+
+### Step 2 — Client: Live WebSocket session
+
+`src/lib/gemini-live-client.ts` — browser ထဲမှာ
+
+- `getUserMedia` → PCM 16kHz frames
+- WebSocket → `wss://generativelanguage.googleapis.com/.../BidiGenerateContent`
+- Audio-in streaming, **text-out** streaming (audio response မယူ)
+- Tool/function calling ကို existing `ai-tools.ts` ထဲက dispatcher နဲ့ ချိတ်
+- Interruption handling (server VAD signals)
+
+### Step 3 — Burmese TTS layer
+
+- AI response text ထွက်လာရင် **chunk-by-chunk** (sentence boundary) `speechSynthesis` ဒါမှမဟုတ် server-side `openai/gpt-4o-mini-tts` ကို stream
+- မြန်မာစာ ပါတဲ့အခါ browser native Burmese voice ကို prefer (လက်ရှိ logic ပြန်သုံး)
+
+### Step 4 — `voice-assistant.tsx` ပြန်ရေး
+
+- Web Speech API code ဖျက်
+- Mic button နှိပ်ရင် Gemini Live session ဖွင့်
+- Status: `connecting → listening → thinking → speaking` (interrupt-able)
+- Transcript panel က user/AI text ကို realtime ပြ
+
+### Step 5 — Fallback
+
+- Browser က WebSocket / Opus encoder မ support ရင် လက်ရှိ cascade pipeline ပြန် fallback
+
+### Step 6 — Cleanup
+
+- LiveKit token endpoint + `livekit-server-sdk` dependency ဖျက် (မသုံးတော့)
+
+### Out of scope
+
+- LiveKit Agent worker deployment (Option X ရွေးမှ)
+- Native audio output (Option A ရွေးမှ)
+- Multi-speaker / multi-room features
+
+### Risks
+
+- Cloudflare Worker က WebSocket relay လုပ်ဖို့ DurableObject သုံးရနိုင် — ဒါပေမဲ့ browser → Gemini direct ဖြစ်ရင် မလို
+- Gemini Live API quota/rate limit — error handling လို
+- Audio frame format mismatch (PCM 16-bit LE 16kHz) — encoding bug ဖြစ်တတ်တယ်
+
+---
+
+**ဘယ် option ရွေးမလဲ ပြောပေးပါ (မေး ၁ + မေး ၂)၊ ပြီးရင် ဒီ plan ကို နောက်ဆုံး update လုပ်ပြီး implement လုပ်ပါမယ်။ A+Y combo သုံးကြည့်မယ် အဆင်မပြေရင် A+X combo**
