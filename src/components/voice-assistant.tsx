@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useRouter } from "@tanstack/react-router";
 import { GeminiLiveSession, type LiveStatus, type LiveEvent } from "@/lib/gemini-live-client";
 
-type Line = { id: string; who: "you" | "ai"; text: string };
+type Line = { id: string; who: "you" | "ai"; text: string; partial?: boolean };
 
 export function VoiceAssistant() {
   const [status, setStatus] = useState<LiveStatus>("idle");
