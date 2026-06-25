@@ -10,6 +10,8 @@ import { ALL_TOOLS } from "@/lib/ai-tools";
 import { dispatchAiTool } from "@/lib/dispatch-tool.functions";
 
 const MODEL = "models/gemini-2.0-flash-live-001";
+const LIVE_WS_BASE =
+  "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent";
 
 const SYSTEM_INSTRUCTION = `You are Mandai — a friendly, professional HR/operations voice assistant in an admin app.
 LANGUAGE: Match the user's language. If they speak Burmese, reply in Burmese; English, reply in English. Mixed, keep the mix.
@@ -119,43 +121,64 @@ export class GeminiLiveSession {
   async start(): Promise<void> {
     this.setStatus("connecting");
 
-    // Auth token for the WS proxy.
+    // Auth token for the mint endpoint.
     const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) {
+    const accessToken = session?.access_token;
+    if (!accessToken) {
       this.emit({ type: "error", message: "Not signed in" });
       this.setStatus("error");
       return;
     }
 
-    // Probe proxy config first so we can surface a clear reason if mis-wired.
+    // Session setup that the ephemeral token will lock to.
+    const setupPayload = {
+      model: MODEL,
+      generationConfig: {
+        responseModalities: ["AUDIO"],
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Aoede" } },
+        },
+      },
+      systemInstruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
+      tools: LIVE_TOOLS,
+      inputAudioTranscription: {},
+      outputAudioTranscription: {},
+    };
+
+    // Mint an ephemeral token from the server (server holds GEMINI_API_KEY).
+    let ephemeral: string;
     try {
-      const probe = await fetch("/api/gemini-live", { method: "GET" });
-      if (probe.ok) {
-        const j = (await probe.json()) as {
-          ok: boolean;
-          hasGeminiKey: boolean;
-          hasSupabaseEnv: boolean;
-          hasWebSocketPair: boolean;
-        };
-        if (!j.ok) {
-          const missing: string[] = [];
-          if (!j.hasGeminiKey) missing.push("GEMINI_API_KEY");
-          if (!j.hasSupabaseEnv) missing.push("SUPABASE env");
-          if (!j.hasWebSocketPair) missing.push("WebSocket runtime");
-          this.emit({
-            type: "error",
-            message: `Voice not available: missing ${missing.join(", ")}. Try Chat mode instead.`,
-          });
-          this.setStatus("error");
-          return;
-        }
+      const res = await fetch("/api/gemini-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ setup: setupPayload }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        this.emit({
+          type: "error",
+          message: `Voice unavailable: ${txt.slice(0, 200) || res.statusText}. Try Chat mode.`,
+        });
+        this.setStatus("error");
+        return;
       }
-    } catch {
-      /* probe is best-effort; continue to WS attempt */
+      const j = (await res.json()) as { token?: string };
+      if (!j.token) {
+        this.emit({ type: "error", message: "Voice token missing — try Chat mode." });
+        this.setStatus("error");
+        return;
+      }
+      ephemeral = j.token;
+    } catch (err) {
+      this.emit({ type: "error", message: `Voice setup failed: ${(err as Error).message}` });
+      this.setStatus("error");
+      return;
     }
 
-    // Mic permission first.
+    // Mic permission.
     try {
       this.micStream = await navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
@@ -196,9 +219,8 @@ export class GeminiLiveSession {
     this.sourceNode.connect(this.workletNode);
     // Do not connect worklet to destination (don't echo mic to speakers).
 
-    // Open WS proxy.
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const wsUrl = `${proto}//${location.host}/api/gemini-live?token=${encodeURIComponent(token)}`;
+    // Open WS directly to Gemini Live with the ephemeral token.
+    const wsUrl = `${LIVE_WS_BASE}?access_token=${encodeURIComponent(ephemeral)}`;
     const ws = new WebSocket(wsUrl);
     this.ws = ws;
 
