@@ -1,5 +1,5 @@
 import { Link, Outlet, useRouterState, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -10,6 +10,8 @@ import {
   ChevronsLeft,
   ChevronsRight,
   Building2,
+  UserCog,
+  Crown,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
@@ -22,7 +24,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { initials } from "@/lib/format";
@@ -40,14 +41,24 @@ const NAV = [
   { to: "/organization", label: "Organization", icon: Building2 },
 ] as const;
 
-const ROLES = ["Recruiter", "HR", "Finance", "Admin", "Team Leader"] as const;
+const ROLES = ["HR", "Team Leader"] as const;
 type Role = (typeof ROLES)[number];
+
+function useRoleState(): [Role, (r: Role) => void] {
+  const [role, setRole] = useState<Role>("HR");
+  useEffect(() => {
+    const stored = typeof window !== "undefined" && window.localStorage.getItem("mandai-role");
+    if (stored && (ROLES as readonly string[]).includes(stored)) setRole(stored as Role);
+  }, []);
+  return [role, setRole];
+}
 
 export function AppShell({ children }: { children?: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [role, setRole] = useState<Role>("Admin");
+  const [role, setRole] = useRoleState();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   const { data: profile } = useQuery({
     queryKey: ["me", "profile"],
@@ -75,21 +86,21 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     },
   });
 
+  // Keep the route in sync with the selected role.
   useEffect(() => {
-    const stored = typeof window !== "undefined" && window.localStorage.getItem("mandai-role");
-    if (stored && ROLES.includes(stored as Role)) setRole(stored as Role);
-  }, []);
+    if (role === "Team Leader" && pathname !== "/team-leader" && !pathname.startsWith("/auth") && !pathname.startsWith("/settings")) {
+      navigate({ to: "/team-leader" });
+    } else if (role === "HR" && pathname === "/team-leader") {
+      navigate({ to: "/dashboard" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [role, pathname]);
 
   function changeRole(r: Role) {
     setRole(r);
-    try {
-      window.localStorage.setItem("mandai-role", r);
-    } catch {}
-    if (r === "Team Leader") {
-      navigate({ to: "/team-leader" });
-    } else {
-      navigate({ to: "/dashboard" });
-    }
+    try { window.localStorage.setItem("mandai-role", r); } catch {}
+    if (r === "Team Leader") navigate({ to: "/team-leader" });
+    else navigate({ to: "/dashboard" });
   }
 
   async function signOut() {
@@ -100,27 +111,60 @@ export function AppShell({ children }: { children?: React.ReactNode }) {
     navigate({ to: "/auth", replace: true });
   }
 
-  return (
-    <div className="flex min-h-screen w-full bg-background">
-      <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-      <div className="flex min-w-0 flex-1 flex-col">
-        <TopBar
+  // Team Leader: no chrome at all — only the page + a floating account widget.
+  if (role === "Team Leader") {
+    return (
+      <div className="min-h-screen w-full bg-background">
+        <main className="min-h-screen">{children ?? <Outlet />}</main>
+        <FloatingAccount
           role={role}
           onRoleChange={changeRole}
           profile={profile}
           org={org}
           onSignOut={signOut}
         />
-        <main className="flex-1 overflow-x-hidden">
-          {children ?? <Outlet />}
-        </main>
+        <VoiceAssistant />
+      </div>
+    );
+  }
+
+  // HR: sidebar only, no top nav bar.
+  return (
+    <div className="flex min-h-screen w-full bg-background">
+      <Sidebar
+        collapsed={collapsed}
+        onToggle={() => setCollapsed((c) => !c)}
+        role={role}
+        onRoleChange={changeRole}
+        profile={profile}
+        org={org}
+        onSignOut={signOut}
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <main className="flex-1 overflow-x-hidden">{children ?? <Outlet />}</main>
       </div>
       <VoiceAssistant />
     </div>
   );
 }
 
-function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
+function Sidebar({
+  collapsed,
+  onToggle,
+  role,
+  onRoleChange,
+  profile,
+  org,
+  onSignOut,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  role: Role;
+  onRoleChange: (r: Role) => void;
+  profile: Profile | null | undefined;
+  org: Org | null | undefined;
+  onSignOut: () => void;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   return (
     <aside
@@ -138,7 +182,16 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         </Button>
       </div>
 
-      <nav className="flex-1 space-y-0.5 p-2">
+      {!collapsed && (
+        <div className="border-b border-sidebar-border px-3 py-2">
+          <div className="flex items-center gap-2">
+            <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+            <span className="truncate text-xs font-medium">{org?.name ?? "Workspace"}</span>
+          </div>
+        </div>
+      )}
+
+      <nav className="flex-1 space-y-0.5 overflow-y-auto p-2">
         {NAV.map((item) => {
           const active = pathname === item.to || pathname.startsWith(item.to + "/");
           return (
@@ -162,14 +215,73 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         })}
       </nav>
 
-      <div className="border-t border-sidebar-border p-3 text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">
-        {collapsed ? "v0.1" : "Mandai · v0.1"}
+      <div className="border-t border-sidebar-border p-2 space-y-1">
+        {!collapsed && (
+          <button
+            onClick={() => onRoleChange("Team Leader")}
+            className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+            title="Switch to Team Leader view"
+          >
+            <Crown className="h-3.5 w-3.5 text-amber-500" />
+            <span>Switch to Team Leader</span>
+          </button>
+        )}
+        {collapsed && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8"
+            onClick={() => onRoleChange("Team Leader")}
+            title="Switch to Team Leader"
+          >
+            <Crown className="h-4 w-4 text-amber-500" />
+          </Button>
+        )}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex w-full items-center gap-2 rounded-md px-1.5 py-1.5 text-left hover:bg-sidebar-accent">
+              <Avatar className="h-7 w-7">
+                <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                  {initials(profile?.full_name)}
+                </AvatarFallback>
+              </Avatar>
+              {!collapsed && (
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-xs font-medium">{profile?.full_name ?? "Account"}</div>
+                  <div className="truncate text-[10px] text-muted-foreground">{role}</div>
+                </div>
+              )}
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="top" className="w-56">
+            <DropdownMenuLabel>
+              <div className="font-medium">{profile?.full_name ?? "Member"}</div>
+              <div className="text-xs text-muted-foreground">{org?.name}</div>
+            </DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem asChild>
+              <Link to="/settings" className="flex items-center gap-2">
+                <Settings className="h-4 w-4" /> Settings
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onRoleChange(role === "HR" ? "Team Leader" : "HR")}>
+              <UserCog className="mr-2 h-4 w-4" /> Switch role
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <div className="px-2 py-1.5"><ThemeToggle /></div>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onSignOut} className="text-destructive focus:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" /> Sign out
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </aside>
   );
 }
 
-function TopBar({
+function FloatingAccount({
   role,
   onRoleChange,
   profile,
@@ -182,102 +294,36 @@ function TopBar({
   org: Org | null | undefined;
   onSignOut: () => void;
 }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const current = useMemo(() => NAV.find((n) => pathname.startsWith(n.to))?.label ?? "Workspace", [pathname]);
-
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur md:px-6">
-      <div className="flex min-w-0 items-center gap-2">
-        <Building2 className="h-4 w-4 text-muted-foreground" />
-        <span className="truncate text-sm font-medium">{org?.name ?? "Workspace"}</span>
-        <span className="text-muted-foreground">/</span>
-        <span className="truncate text-sm text-muted-foreground">{current}</span>
-      </div>
-
-      <div className="ml-auto flex items-center gap-2">
-        <div className="hidden items-center gap-2 sm:flex">
-          <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground">Role</span>
-          <Select value={role} onValueChange={(v) => onRoleChange(v as Role)}>
-            <SelectTrigger className="h-8 w-[120px] text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {ROLES.map((r) => (
-                <SelectItem key={r} value={r} className="text-xs">
-                  {r}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        <AIStatusIndicator />
-
-        <ThemeToggle />
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="h-9 gap-2 px-2">
-              <Avatar className="h-7 w-7">
-                <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                  {initials(profile?.full_name)}
-                </AvatarFallback>
-              </Avatar>
-              <span className="hidden text-sm font-medium sm:inline">{profile?.full_name ?? "Account"}</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
-            <DropdownMenuLabel>
-              <div className="font-medium">{profile?.full_name ?? "Member"}</div>
-              <div className="text-xs text-muted-foreground">{org?.name}</div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem asChild>
-              <Link to="/settings" className="flex items-center gap-2">
-                <Settings className="h-4 w-4" /> Settings
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={onSignOut} className="text-destructive focus:text-destructive">
-              <LogOut className="mr-2 h-4 w-4" /> Sign out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </header>
-  );
-}
-
-function AIStatusIndicator() {
-  // Active when any meeting is transcribing/extracting
-  const { data } = useQuery({
-    queryKey: ["ai", "activity"],
-    refetchInterval: 5000,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("meetings")
-        .select("id, status")
-        .in("status", ["transcribing", "extracting"])
-        .limit(1);
-      if (error) return [];
-      return data ?? [];
-    },
-  });
-  const active = (data?.length ?? 0) > 0;
-  return (
-    <div
-      className={`hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-mono uppercase tracking-[0.18em] md:inline-flex ${
-        active
-          ? "border-primary/40 bg-primary/10 text-primary"
-          : "border-border bg-card text-muted-foreground"
-      }`}
-      title={active ? "AI processing" : "AI idle"}
-    >
-      <span className="relative flex h-1.5 w-1.5">
-        {active && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />}
-        <span className={`relative inline-flex h-1.5 w-1.5 rounded-full ${active ? "bg-primary" : "bg-muted-foreground/50"}`} />
-      </span>
-      {active ? "AI active" : "AI idle"}
+    <div className="fixed right-4 top-4 z-40">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" className="h-9 gap-2 rounded-full bg-background/80 px-2 backdrop-blur">
+            <Avatar className="h-7 w-7">
+              <AvatarFallback className="bg-primary/10 text-primary text-xs">
+                {initials(profile?.full_name)}
+              </AvatarFallback>
+            </Avatar>
+            <span className="hidden text-sm font-medium sm:inline">{profile?.full_name ?? "Account"}</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuLabel>
+            <div className="font-medium">{profile?.full_name ?? "Member"}</div>
+            <div className="text-xs text-muted-foreground">{org?.name} · {role}</div>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={() => onRoleChange("HR")}>
+            <UserCog className="mr-2 h-4 w-4" /> Switch to HR
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <div className="px-2 py-1.5"><ThemeToggle /></div>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onSignOut} className="text-destructive focus:text-destructive">
+            <LogOut className="mr-2 h-4 w-4" /> Sign out
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }
