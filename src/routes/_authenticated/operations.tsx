@@ -115,6 +115,23 @@ function Leaderboard() {
     },
   });
 
+  // Pending peer reviews this month: distinct (team_id, reviewer) pairs missing.
+  const period = new Date(); period.setUTCDate(1);
+  const periodKey = period.toISOString().slice(0, 10);
+  const { data: pendingReviews } = useQuery({
+    queryKey: ["pending_peer_reviews", periodKey],
+    queryFn: async () => {
+      const [{ data: tm }, { data: pr }] = await Promise.all([
+        supabase.from("team_members").select("team_id, employee_id"),
+        supabase.from("peer_reviews").select("team_id, reviewer_employee_id").eq("period_month", periodKey),
+      ]);
+      const submitted = new Set((pr ?? []).map((r) => `${r.team_id}:${r.reviewer_employee_id}`));
+      let pending = 0;
+      for (const m of tm ?? []) if (!submitted.has(`${m.team_id}:${m.employee_id}`)) pending++;
+      return pending;
+    },
+  });
+
   const period = new Date(); period.setUTCDate(1);
   const periodKey = period.toISOString().slice(0, 10);
   const latestKpi = (id: string) => kpis?.find((k) => k.employee_id === id && k.period_month.startsWith(periodKey.slice(0, 7)));
