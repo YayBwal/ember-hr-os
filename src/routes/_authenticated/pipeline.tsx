@@ -470,6 +470,15 @@ function PipelinePage() {
                   >
                     <Brain className="h-3 w-3" />
                   </button>
+                  {c.telegram_chat_id && (
+                    <button
+                      onClick={() => setNotifying(c)}
+                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-sky-500/40 hover:text-sky-600"
+                      title="Notify candidate via Telegram"
+                    >
+                      <MessageCircle className="h-3 w-3" />
+                    </button>
+                  )}
                   {c.status === "screening" && (
                     <button
                       onClick={() => advanceOne(c)}
