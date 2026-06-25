@@ -780,6 +780,7 @@ function KpiTab() {
                         </td>
                         <td className="px-4 py-3 text-right">{Number(r.attendance_pct).toFixed(0)}%</td>
                         <td className="px-4 py-3 text-right">{Number(r.working_hours).toFixed(0)}h</td>
+                        <td className="px-4 py-3 text-right">{Number(r.overtime_hours ?? 0) > 0 ? <span className="text-amber-600 font-medium">{Number(r.overtime_hours).toFixed(0)}h</span> : <span className="text-muted-foreground">—</span>}</td>
                         <td className="px-4 py-3 text-right font-medium">{Number(r.kpi_score).toFixed(1)}</td>
                         <td className="px-4 py-3 text-center">
                           {r.final_eligible
