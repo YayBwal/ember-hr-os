@@ -228,7 +228,7 @@ function PipelinePage() {
             <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary">Pipeline</div>
             <h1 className="mt-1 font-display text-3xl font-semibold tracking-tight">Candidates</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              Screening → Interview → Hired. Built for high-volume days.
+              Screening → Interview → Hired. Telegram applications land here automatically.
             </p>
           </div>
           <Button onClick={() => setOpen(true)} className="gap-2">
