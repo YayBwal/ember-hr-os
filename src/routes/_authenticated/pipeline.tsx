@@ -107,7 +107,7 @@ function PipelinePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk")
+        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk, hold_reason, held_at")
         .order("ai_match_score", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Candidate[];
