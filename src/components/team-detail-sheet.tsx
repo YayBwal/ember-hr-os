@@ -138,8 +138,8 @@ function LeaderRow({ team, allEmployees, isAdmin }: { team: Team; allEmployees: 
   });
   const tlEmailSet = new Set(
     (tlAccounts ?? [])
-      .map((u) => (u.email ?? "").toLowerCase().trim())
-      .filter((s) => s.length > 0),
+      .map((u: { email: string | null }) => (u.email ?? "").toLowerCase().trim())
+      .filter((s: string) => s.length > 0),
   );
   // Only employees that already have a Team Leader login account are eligible.
   const eligibleLeaders = allEmployees.filter(
