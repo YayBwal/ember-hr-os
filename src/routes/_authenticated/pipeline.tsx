@@ -19,7 +19,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare } from "lucide-react";
+import { Loader2, Plus, Upload, FileText, Sparkles, X, ArrowRight, Trash2, Brain, GitCompare, PauseCircle, Undo2 } from "lucide-react";
 import { parseCv, scoreManual, analyzeCandidate, compareCandidates, type DeepAnalysis, type ComparisonResult } from "@/lib/pipeline.functions";
 import { approveCandidate } from "@/lib/operations.functions";
 
@@ -32,12 +32,13 @@ export const Route = createFileRoute("/_authenticated/pipeline")({
   component: PipelinePage,
 });
 
-const STAGES = ["screening", "interview", "trainee", "hired"] as const;
+const STAGES = ["screening", "interview", "hold", "trainee", "hired"] as const;
 type Stage = (typeof STAGES)[number] | "rejected";
 
 const STAGE_LABELS: Record<Stage, string> = {
   screening: "Screening",
   interview: "Interview",
+  hold: "On Hold",
   trainee: "Trainee",
   hired: "Hired",
   rejected: "Rejected",
@@ -65,6 +66,8 @@ type Candidate = {
   skills: string[] | null;
   next_action: string | null;
   trainee_salary_mmk: number | null;
+  hold_reason: string | null;
+  held_at: string | null;
 };
 
 const PAGE_SIZE = 25;
@@ -73,6 +76,7 @@ function PipelinePage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [approving, setApproving] = useState<Candidate | null>(null);
+  const [holding, setHolding] = useState<Candidate[] | null>(null);
   const [analyzeId, setAnalyzeId] = useState<Candidate | null>(null);
   const [compareOpen, setCompareOpen] = useState(false);
   const { q, stage: stageParam } = Route.useSearch();
@@ -104,7 +108,7 @@ function PipelinePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("candidates")
-        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk")
+        .select("id, full_name, email, role_applied, status, ai_match_score, notes, skills, next_action, trainee_salary_mmk, hold_reason, held_at")
         .order("ai_match_score", { ascending: false });
       if (error) throw error;
       return (data ?? []) as Candidate[];
@@ -125,7 +129,7 @@ function PipelinePage() {
   const all = candidates ?? [];
 
   const counts = useMemo(() => {
-    const c: Record<Stage, number> = { screening: 0, interview: 0, trainee: 0, hired: 0, rejected: 0 };
+    const c: Record<Stage, number> = { screening: 0, interview: 0, hold: 0, trainee: 0, hired: 0, rejected: 0 };
     for (const x of all) c[x.status] = (c[x.status] ?? 0) + 1;
     return c;
   }, [all]);
@@ -182,6 +186,39 @@ function PipelinePage() {
     if (!confirm(`Permanently delete ${ids.length} candidate${ids.length === 1 ? "" : "s"}? This cannot be undone.`)) return;
     update.mutate({ ids, status: "rejected" });
   }
+
+  const holdMut = useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      const { error } = await supabase
+        .from("candidates")
+        .update({ status: "hold", hold_reason: reason, held_at: new Date().toISOString() })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`Placed ${vars.ids.length} on hold`);
+      setSelected(new Set());
+      setHolding(null);
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  const recallMut = useMutation({
+    mutationFn: async ({ ids, to }: { ids: string[]; to: Stage }) => {
+      const { error } = await supabase
+        .from("candidates")
+        .update({ status: to, hold_reason: null, held_at: null })
+        .in("id", ids);
+      if (error) throw error;
+    },
+    onSuccess: (_d, vars) => {
+      toast.success(`Recalled ${vars.ids.length} → ${STAGE_LABELS[vars.to]}`);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["candidates"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   function setStage(s: Stage) {
     navigate({ search: (prev: any) => ({ ...prev, stage: s }), replace: true });
@@ -305,6 +342,29 @@ function PipelinePage() {
                   <GitCompare className="h-3.5 w-3.5" /> Compare ({selected.size})
                 </Button>
               )}
+              {(activeStage === "interview" || activeStage === "trainee" || activeStage === "screening") && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const list = (candidates ?? []).filter((c) => selected.has(c.id));
+                    if (list.length) setHolding(list);
+                  }}
+                  className="gap-1.5"
+                >
+                  <PauseCircle className="h-3.5 w-3.5" /> Place on hold
+                </Button>
+              )}
+              {activeStage === "hold" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => recallMut.mutate({ ids: Array.from(selected), to: "interview" })}
+                  className="gap-1.5"
+                >
+                  <Undo2 className="h-3.5 w-3.5" /> Recall → Interview
+                </Button>
+              )}
               <Button
                 size="sm"
                 variant="outline"
@@ -386,8 +446,13 @@ function PipelinePage() {
                 <div className="col-span-2">
                   <MatchBar score={Number(c.ai_match_score)} />
                 </div>
-                <div className="col-span-2 text-xs text-muted-foreground truncate" title={c.next_action ?? ""}>
-                  {c.next_action ?? "—"}
+                <div className="col-span-2 text-xs text-muted-foreground truncate" title={c.status === "hold" ? (c.hold_reason ?? "") : (c.next_action ?? "")}>
+                  {c.status === "hold" ? (
+                    <span>
+                      <span className="text-amber-600">⏸ {c.hold_reason ?? "On hold"}</span>
+                      {c.held_at && <span className="ml-1 text-[10px]">· {daysAgo(c.held_at)}d</span>}
+                    </span>
+                  ) : (c.next_action ?? "—")}
                 </div>
                 <div className="col-span-2 flex items-center justify-end gap-1">
                   <button
@@ -429,6 +494,24 @@ function PipelinePage() {
                       Promote → Hired
                     </button>
                   )}
+                  {c.status === "hold" && (
+                    <button
+                      onClick={() => recallMut.mutate({ ids: [c.id], to: "interview" })}
+                      className="rounded-md border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-medium text-primary hover:bg-primary/20"
+                      title="Recall this candidate back to Interview"
+                    >
+                      ↺ Recall
+                    </button>
+                  )}
+                  {(c.status === "screening" || c.status === "interview" || c.status === "trainee") && (
+                    <button
+                      onClick={() => setHolding([c])}
+                      className="rounded-md border border-border bg-background p-1.5 text-muted-foreground hover:border-amber-500/40 hover:text-amber-600"
+                      title="Place on hold (talent pool)"
+                    >
+                      <PauseCircle className="h-3 w-3" />
+                    </button>
+                  )}
                   {c.status !== "hired" && (
                     <button
                       onClick={() => reject([c.id])}
@@ -463,7 +546,63 @@ function PipelinePage() {
         candidates={all}
         onClose={() => setCompareOpen(false)}
       />
+      <HoldDialog
+        candidates={holding}
+        onClose={() => setHolding(null)}
+        onConfirm={(reason) => holdMut.mutate({ ids: (holding ?? []).map((c) => c.id), reason })}
+        pending={holdMut.isPending}
+      />
     </AppShell>
+  );
+}
+
+function daysAgo(iso: string) {
+  const ms = Date.now() - new Date(iso).getTime();
+  return Math.max(0, Math.floor(ms / 86400000));
+}
+
+function HoldDialog({
+  candidates, onClose, onConfirm, pending,
+}: {
+  candidates: Candidate[] | null;
+  onClose: () => void;
+  onConfirm: (reason: string) => void;
+  pending: boolean;
+}) {
+  const [reason, setReason] = useState("Position currently full — keep warm for next opening");
+  const open = !!candidates && candidates.length > 0;
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Place on hold</DialogTitle>
+          <DialogDescription>
+            Park {candidates?.length ?? 0} candidate{(candidates?.length ?? 0) === 1 ? "" : "s"} in the talent pool. Recall them later when a new opening matches.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-2">
+          <Label htmlFor="hold-reason">Reason</Label>
+          <Textarea
+            id="hold-reason"
+            rows={3}
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Why are we holding? (e.g. position full, budget freeze, strong but no fit yet)"
+          />
+          {candidates && candidates.length <= 5 && (
+            <div className="rounded-md border border-border bg-muted/30 p-2 text-xs text-muted-foreground">
+              {candidates.map((c) => c.full_name).join(", ")}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>Cancel</Button>
+          <Button onClick={() => onConfirm(reason.trim() || "On hold")} disabled={pending}>
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Place on hold"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
