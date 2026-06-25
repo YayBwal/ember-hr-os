@@ -75,6 +75,37 @@ export function TeamDetailSheet({ team, allEmployees, onClose }: { team: Team | 
   );
 }
 
+function RenameTeamRow({ team }: { team: Team }) {
+  const qc = useQueryClient();
+  const rename = useServerFn(renameTeam);
+  const [name, setName] = useState(team.name);
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    if (!name.trim() || name.trim() === team.name) return;
+    setSaving(true);
+    try {
+      await rename({ data: { id: team.id, name: name.trim() } });
+      toast.success("Team renamed");
+      qc.invalidateQueries({ queryKey: ["teams"] });
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <div className="mt-3 flex items-end gap-2">
+      <div className="flex-1">
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Rename team</Label>
+        <Input value={name} onChange={(e) => setName(e.target.value)} className="h-8 text-xs" />
+      </div>
+      <Button size="sm" variant="outline" onClick={save} disabled={saving || !name.trim() || name.trim() === team.name}>
+        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Save"}
+      </Button>
+    </div>
+  );
+}
+
 function MembersTab({ team, allEmployees, isAdmin }: { team: Team; allEmployees: Emp[]; isAdmin: boolean }) {
   const qc = useQueryClient();
   const appoint = useServerFn(appointTeamLeader);
