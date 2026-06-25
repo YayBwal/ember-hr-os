@@ -15,7 +15,7 @@ const tools = [
         properties: {
           route: {
             type: "string",
-            enum: ["/dashboard", "/pipeline", "/operations", "/team-leader", "/financial", "/settings"],
+            enum: ["/pipeline", "/operations", "/team-leader", "/financial", "/settings"],
           },
         },
         required: ["route"],
@@ -56,7 +56,7 @@ LANGUAGE RULE: Mirror the user's language exactly.
 - If the user mixes languages (e.g. Burmese with English names/terms), keep the same mix — DO NOT translate proper names. Example: user says "Candidates Kaung Set Paing ကိုရှာပေးပါ" → reply "Candidates Kaung Set Paing ကိုရှာပေးနေပါပြီ" then call the search_candidates tool.
 Keep replies short (1–2 sentences) because they are spoken aloud. No markdown.
 When the user asks to find/search/look up a candidate by name, ALWAYS call search_candidates.
-When the user asks to open/go to a page (dashboard, pipeline, operations, delivery, financial, settings), call navigate.`;
+When the user asks to open/go to a page (pipeline, operations, team-leader, financial, settings), call navigate.`;
 
     const messages: any[] = [{ role: "system", content: system }, ...data.messages];
     const actions: Action[] = [];

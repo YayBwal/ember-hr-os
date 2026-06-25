@@ -45,7 +45,7 @@ function AuthPage() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data, error }) => {
-      if (data.user) navigate({ to: "/dashboard" });
+      if (data.user) navigate({ to: "/operations" });
       if (error) supabase.auth.signOut({ scope: "local" });
     });
   }, [navigate]);
@@ -82,7 +82,7 @@ function AuthPage() {
     }
 
     toast.success("Welcome back");
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/operations" });
   }
 
   async function handlePasswordReset(email: FormDataEntryValue | null) {
@@ -124,7 +124,7 @@ function AuthPage() {
       email: parsed.data.email,
       password: parsed.data.password,
       options: {
-        emailRedirectTo: `${window.location.origin}/dashboard`,
+        emailRedirectTo: `${window.location.origin}/operations`,
         data: {
           org_name: parsed.data.org,
           full_name: parsed.data.full_name,
@@ -142,7 +142,7 @@ function AuthPage() {
       return;
     }
     toast.success("Workspace created — you're signed in.");
-    navigate({ to: "/dashboard" });
+    navigate({ to: "/operations" });
   }
 
   async function handleGoogle() {
@@ -161,7 +161,7 @@ function AuthPage() {
         return;
       }
       if (result.redirected) return;
-      navigate({ to: "/dashboard" });
+      navigate({ to: "/operations" });
     } catch (err) {
       console.error("Google sign-in threw:", err);
       setOauthLoading(false);
