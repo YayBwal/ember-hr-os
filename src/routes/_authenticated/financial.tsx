@@ -355,9 +355,13 @@ function PromotionsTab() {
                           <div className="text-xs text-muted-foreground">No history.</div>
                         ) : (
                           <ul className="space-y-1 text-xs">
-                            {historyFor(e.id).map((p) => (
+                            {historyFor(e.id).map((p) => {
+                              const diff = p.from_level ? LEVELS.indexOf(p.to_level) - LEVELS.indexOf(p.from_level) : 0;
+                              const kind = diff > 0 ? "Promotion" : diff < 0 ? "Demotion" : "Lateral";
+                              return (
                               <li key={p.id} className="flex flex-wrap items-center gap-2">
                                 <span className="text-muted-foreground">{new Date(p.effective_date).toLocaleDateString()}</span>
+                                <Badge variant={diff < 0 ? "outline" : "secondary"} className="text-[10px]">{kind}</Badge>
                                 <Badge variant="outline" className="text-[10px]">
                                   {p.from_level ? `${LEVEL_LABEL[p.from_level]} → ` : ""}{LEVEL_LABEL[p.to_level]}
                                 </Badge>
@@ -368,7 +372,8 @@ function PromotionsTab() {
                                 </span>
                                 {p.note && <span className="text-muted-foreground italic">· {p.note}</span>}
                               </li>
-                            ))}
+                              );
+                            })}
                           </ul>
                         )}
                       </td>
