@@ -137,7 +137,7 @@ function PipelinePage() {
   const all = candidates ?? [];
 
   const counts = useMemo(() => {
-    const c: Record<Stage, number> = { screening: 0, interview: 0, trainee: 0, hired: 0, rejected: 0 };
+    const c: Record<Stage, number> = { screening: 0, interview: 0, trainee: 0, hold: 0, hired: 0, rejected: 0 };
     for (const x of all) c[x.status] = (c[x.status] ?? 0) + 1;
     return c;
   }, [all]);
