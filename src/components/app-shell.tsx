@@ -30,8 +30,11 @@ import { toast } from "sonner";
 const VoiceAssistant = lazy(() =>
   import("@/components/voice-assistant").then((m) => ({ default: m.VoiceAssistant })),
 );
+const AiCopilot = lazy(() =>
+  import("@/components/ai-copilot").then((m) => ({ default: m.AiCopilot })),
+);
 
-function DeferredVoiceAssistant() {
+function DeferredAssistants() {
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const w = window as Window & { requestIdleCallback?: (cb: () => void) => number };
@@ -45,6 +48,7 @@ function DeferredVoiceAssistant() {
   return (
     <Suspense fallback={null}>
       <VoiceAssistant />
+      <AiCopilot />
     </Suspense>
   );
 }
