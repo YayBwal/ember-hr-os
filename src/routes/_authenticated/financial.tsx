@@ -135,8 +135,14 @@ function PayrollTab() {
 
   const runMut = useMutation({
     mutationFn: () => runFn({ data: { periodMonth: period } }),
-    onSuccess: () => { toast.success("Payroll recomputed"); qc.invalidateQueries({ queryKey: ["payroll_runs", period] }); qc.invalidateQueries({ queryKey: ["payroll_lines"] }); },
-    onError: (e: Error) => toast.error(e.message),
+    onSuccess: async (res: { ok: boolean; count: number }) => {
+      toast.success(`Payroll recomputed for ${res?.count ?? 0} employees`);
+      await qc.refetchQueries({ queryKey: ["payroll_runs", period] });
+      await qc.invalidateQueries({ queryKey: ["payroll_lines"] });
+      qc.invalidateQueries({ queryKey: ["kpi_dashboard"] });
+      qc.invalidateQueries({ queryKey: ["kpi_overrides", period] });
+    },
+    onError: (e: Error) => toast.error(e.message || "Recompute failed"),
   });
 
   const submitDialog = async () => {
