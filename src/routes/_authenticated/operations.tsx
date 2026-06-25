@@ -82,7 +82,7 @@ function Leaderboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, full_name, email, department, position, monthly_base_mmk, performance_score, attendance_pct, team_id, join_date, phone, avatar_url, salary_grade, level");
+        .select("id, full_name, email, department, position, monthly_base_mmk, performance_score, attendance_pct, team_id, join_date, phone, avatar_url, salary_grade, level, telegram_chat_id");
       if (error) throw error;
       return (data ?? []) as Employee[];
     },
@@ -95,17 +95,18 @@ function Leaderboard() {
       return (data ?? []) as Kpi[];
     },
   });
-  const { data: taskCounts } = useQuery({
-    queryKey: ["task_counts"],
+  const { data: activeTaskCounts } = useQuery({
+    queryKey: ["task_counts_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("tasks").select("assignee_employee_id,status");
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("assignee_employee_id,status")
+        .in("status", ["todo", "in_progress"]);
       if (error) throw error;
-      const map: Record<string, { completed: number; active: number }> = {};
+      const map: Record<string, number> = {};
       for (const t of data ?? []) {
         if (!t.assignee_employee_id) continue;
-        const m = (map[t.assignee_employee_id] ??= { completed: 0, active: 0 });
-        if (t.status === "done") m.completed++;
-        else if (t.status !== "cancelled") m.active++;
+        map[t.assignee_employee_id] = (map[t.assignee_employee_id] ?? 0) + 1;
       }
       return map;
     },
@@ -126,25 +127,23 @@ function Leaderboard() {
   const rows = useMemo(() => {
     const list = (employees ?? []).map((e) => {
       const k = latestKpi(e.id);
-      const counts = taskCounts?.[e.id] ?? { completed: 0, active: 0 };
       return {
         emp: e,
         kpi: Number(k?.kpi ?? e.performance_score ?? 0),
         taskCompletion: Number(k?.task_completion ?? 0),
         attendance: Number(k?.attendance ?? e.attendance_pct ?? 0),
-        completed: counts.completed,
-        active: counts.active,
+        activeTasks: activeTaskCounts?.[e.id] ?? 0,
       };
     });
     const cmp: Record<SortKey, (a: typeof list[number], b: typeof list[number]) => number> = {
       kpi: (a, b) => b.kpi - a.kpi,
       attendance: (a, b) => b.attendance - a.attendance,
-      completed: (a, b) => b.completed - a.completed,
     };
     list.sort(cmp[sortBy]);
     return list;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employees, kpis, taskCounts, sortBy]);
+  }, [employees, kpis, activeTaskCounts, sortBy]);
+
 
 
   const teamName = (id: string | null) => teams?.find((t) => t.id === id)?.name ?? "—";
