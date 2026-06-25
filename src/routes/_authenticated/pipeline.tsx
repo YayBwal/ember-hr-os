@@ -704,6 +704,7 @@ function AddCandidateDialog({
               skills: parsed.skills,
               next_action: parsed.next_action,
               notes: parsed.summary || null,
+              cv_storage_path: parsed.cv_storage_path,
             });
             if (error) throw error;
             okCount += 1;
