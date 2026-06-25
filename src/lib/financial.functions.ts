@@ -50,7 +50,7 @@ export const runPayroll = createServerFn({ method: "POST" })
     return { ok: true, count: emps?.length ?? 0 };
   });
 
-export type EmployeeLevel = "junior" | "mid" | "senior" | "lead";
+export type EmployeeLevel = "trainee" | "junior" | "mid" | "senior" | "lead";
 
 export const promoteEmployee = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -60,8 +60,13 @@ export const promoteEmployee = createServerFn({ method: "POST" })
     toPosition: string;
     toBaseMmk: number;
     effectiveDate?: string;
-    note?: string;
-  }) => d)
+    note: string;
+    kpiAdjustment?: number;
+  }) => {
+    if (!d.note || d.note.trim().length === 0) throw new Error("Reason is required");
+    const adj = Math.max(-50, Math.min(50, Number(d.kpiAdjustment ?? 0)));
+    return { ...d, note: d.note.trim(), kpiAdjustment: adj };
+  })
   .handler(async ({ data, context }) => {
     const { data: id, error } = await context.supabase.rpc("promote_employee", {
       _employee_id: data.employeeId,
@@ -69,8 +74,9 @@ export const promoteEmployee = createServerFn({ method: "POST" })
       _to_position: data.toPosition,
       _to_base_mmk: data.toBaseMmk,
       _effective_date: data.effectiveDate ?? new Date().toISOString().slice(0, 10),
-      _note: data.note ?? undefined,
-    });
+      _note: data.note,
+      _kpi_adjustment: data.kpiAdjustment,
+    } as never);
     if (error) throw new Error(error.message);
     return { id };
   });
