@@ -41,9 +41,10 @@ type Employee = {
   level: "junior" | "mid" | "senior" | "lead";
 };
 type Team = { id: string; name: string; department: Dept; team_lead_employee_id: string | null; org_id: string };
-type Kpi = { employee_id: string; period_month: string; task_completion: number; productivity: number; quality: number; attendance: number; kpi: number };
+type Kpi = { employee_id: string; period_month: string; task_completion: number; attendance: number; kpi: number };
 
-type SortKey = "kpi" | "productivity" | "attendance" | "completed";
+type SortKey = "kpi" | "attendance" | "completed";
+
 
 function OperationsPage() {
   useRealtimeInvalidate(
