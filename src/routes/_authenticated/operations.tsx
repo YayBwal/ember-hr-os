@@ -156,22 +156,10 @@ function Leaderboard() {
           <SelectTrigger className="w-44"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="kpi">Highest KPI</SelectItem>
-            <SelectItem value="productivity">Productivity</SelectItem>
             <SelectItem value="attendance">Attendance</SelectItem>
             <SelectItem value="completed">Completed Tasks</SelectItem>
           </SelectContent>
         </Select>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant={pendingReviews && pendingReviews > 0 ? "default" : "outline"} className="ml-auto gap-1 cursor-help">
-                <ClipboardList className="h-3 w-3" />
-                {pendingReviews ?? 0} pending review{(pendingReviews ?? 0) === 1 ? "" : "s"}
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>Team members who haven't submitted peer reviews this month.</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       </div>
 
       <div className="mt-4 overflow-x-auto rounded-xl border border-border bg-card">
@@ -183,7 +171,7 @@ function Leaderboard() {
               <th className="px-4 py-3 text-left">Dept</th>
               <th className="px-4 py-3 text-left">Team</th>
               <th className="px-4 py-3 text-right">KPI</th>
-              <th className="px-4 py-3 text-right">Prod.</th>
+              <th className="px-4 py-3 text-right">Task %</th>
               <th className="px-4 py-3 text-right">Att.</th>
               <th className="px-4 py-3 text-right">Done</th>
               <th className="px-4 py-3 text-right">Active</th>
@@ -209,7 +197,7 @@ function Leaderboard() {
                 <td className="px-4 py-3">{r.emp.department}</td>
                 <td className="px-4 py-3">{teamName(r.emp.team_id)}</td>
                 <td className="px-4 py-3 text-right font-medium">{r.kpi.toFixed(1)}</td>
-                <td className="px-4 py-3 text-right">{r.productivity.toFixed(0)}</td>
+                <td className="px-4 py-3 text-right">{r.taskCompletion.toFixed(0)}%</td>
                 <td className="px-4 py-3 text-right">{r.attendance.toFixed(0)}%</td>
                 <td className="px-4 py-3 text-right">{r.completed}</td>
                 <td className="px-4 py-3 text-right">{r.active}</td>
@@ -218,6 +206,7 @@ function Leaderboard() {
             ))}
             {rows.length === 0 && (
               <tr><td colSpan={10} className="px-4 py-10 text-center text-sm text-muted-foreground">No employees yet. Approve a candidate in Pipeline.</td></tr>
+
             )}
           </tbody>
         </table>
