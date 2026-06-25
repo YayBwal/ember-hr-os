@@ -20,6 +20,8 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedPipelineRouteImport } from './routes/_authenticated/pipeline'
 import { Route as AuthenticatedOperationsRouteImport } from './routes/_authenticated/operations'
 import { Route as AuthenticatedFinancialRouteImport } from './routes/_authenticated/financial'
+import { Route as AuthenticatedFeedbacksRouteImport } from './routes/_authenticated/feedbacks'
+import { Route as ApiPublicTelegramWebhookRouteImport } from './routes/api/public/telegram/webhook'
 import { Route as ApiPublicAgentToolsRouteImport } from './routes/api/public/agent/tools'
 
 const ResetPasswordRoute = ResetPasswordRouteImport.update({
@@ -76,6 +78,17 @@ const AuthenticatedFinancialRoute = AuthenticatedFinancialRouteImport.update({
   path: '/financial',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedFeedbacksRoute = AuthenticatedFeedbacksRouteImport.update({
+  id: '/feedbacks',
+  path: '/feedbacks',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ApiPublicTelegramWebhookRoute =
+  ApiPublicTelegramWebhookRouteImport.update({
+    id: '/api/public/telegram/webhook',
+    path: '/api/public/telegram/webhook',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAgentToolsRoute = ApiPublicAgentToolsRouteImport.update({
   id: '/api/public/agent/tools',
   path: '/api/public/agent/tools',
@@ -86,6 +99,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/feedbacks': typeof AuthenticatedFeedbacksRoute
   '/financial': typeof AuthenticatedFinancialRoute
   '/operations': typeof AuthenticatedOperationsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -94,11 +108,13 @@ export interface FileRoutesByFullPath {
   '/api/gemini-token': typeof ApiGeminiTokenRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
+  '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/feedbacks': typeof AuthenticatedFeedbacksRoute
   '/financial': typeof AuthenticatedFinancialRoute
   '/operations': typeof AuthenticatedOperationsRoute
   '/pipeline': typeof AuthenticatedPipelineRoute
@@ -107,6 +123,7 @@ export interface FileRoutesByTo {
   '/api/gemini-token': typeof ApiGeminiTokenRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
+  '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -114,6 +131,7 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
+  '/_authenticated/feedbacks': typeof AuthenticatedFeedbacksRoute
   '/_authenticated/financial': typeof AuthenticatedFinancialRoute
   '/_authenticated/operations': typeof AuthenticatedOperationsRoute
   '/_authenticated/pipeline': typeof AuthenticatedPipelineRoute
@@ -122,6 +140,7 @@ export interface FileRoutesById {
   '/api/gemini-token': typeof ApiGeminiTokenRoute
   '/api/livekit-token': typeof ApiLivekitTokenRoute
   '/api/public/agent/tools': typeof ApiPublicAgentToolsRoute
+  '/api/public/telegram/webhook': typeof ApiPublicTelegramWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -129,6 +148,7 @@ export interface FileRouteTypes {
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/feedbacks'
     | '/financial'
     | '/operations'
     | '/pipeline'
@@ -137,11 +157,13 @@ export interface FileRouteTypes {
     | '/api/gemini-token'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
+    | '/api/public/telegram/webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/auth'
     | '/reset-password'
+    | '/feedbacks'
     | '/financial'
     | '/operations'
     | '/pipeline'
@@ -150,12 +172,14 @@ export interface FileRouteTypes {
     | '/api/gemini-token'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
+    | '/api/public/telegram/webhook'
   id:
     | '__root__'
     | '/'
     | '/_authenticated'
     | '/auth'
     | '/reset-password'
+    | '/_authenticated/feedbacks'
     | '/_authenticated/financial'
     | '/_authenticated/operations'
     | '/_authenticated/pipeline'
@@ -164,6 +188,7 @@ export interface FileRouteTypes {
     | '/api/gemini-token'
     | '/api/livekit-token'
     | '/api/public/agent/tools'
+    | '/api/public/telegram/webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -174,6 +199,7 @@ export interface RootRouteChildren {
   ApiGeminiTokenRoute: typeof ApiGeminiTokenRoute
   ApiLivekitTokenRoute: typeof ApiLivekitTokenRoute
   ApiPublicAgentToolsRoute: typeof ApiPublicAgentToolsRoute
+  ApiPublicTelegramWebhookRoute: typeof ApiPublicTelegramWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -255,6 +281,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFinancialRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/feedbacks': {
+      id: '/_authenticated/feedbacks'
+      path: '/feedbacks'
+      fullPath: '/feedbacks'
+      preLoaderRoute: typeof AuthenticatedFeedbacksRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/api/public/telegram/webhook': {
+      id: '/api/public/telegram/webhook'
+      path: '/api/public/telegram/webhook'
+      fullPath: '/api/public/telegram/webhook'
+      preLoaderRoute: typeof ApiPublicTelegramWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/agent/tools': {
       id: '/api/public/agent/tools'
       path: '/api/public/agent/tools'
@@ -266,6 +306,7 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedRouteRouteChildren {
+  AuthenticatedFeedbacksRoute: typeof AuthenticatedFeedbacksRoute
   AuthenticatedFinancialRoute: typeof AuthenticatedFinancialRoute
   AuthenticatedOperationsRoute: typeof AuthenticatedOperationsRoute
   AuthenticatedPipelineRoute: typeof AuthenticatedPipelineRoute
@@ -274,6 +315,7 @@ interface AuthenticatedRouteRouteChildren {
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
+  AuthenticatedFeedbacksRoute: AuthenticatedFeedbacksRoute,
   AuthenticatedFinancialRoute: AuthenticatedFinancialRoute,
   AuthenticatedOperationsRoute: AuthenticatedOperationsRoute,
   AuthenticatedPipelineRoute: AuthenticatedPipelineRoute,
@@ -292,6 +334,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGeminiTokenRoute: ApiGeminiTokenRoute,
   ApiLivekitTokenRoute: ApiLivekitTokenRoute,
   ApiPublicAgentToolsRoute: ApiPublicAgentToolsRoute,
+  ApiPublicTelegramWebhookRoute: ApiPublicTelegramWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
