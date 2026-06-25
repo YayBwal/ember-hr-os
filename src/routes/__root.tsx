@@ -79,14 +79,14 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Mandai — AI Operations Layer for Enterprise HR" },
+      { title: "Mandai" },
       {
         name: "description",
         content:
           "Mandai unifies recruitment, operations, delivery, and MMK payroll into one real-time AI HR operating system.",
       },
       { name: "author", content: "Mandai" },
-      { property: "og:title", content: "Mandai — AI Operations Layer for Enterprise HR" },
+      { property: "og:title", content: "Mandai" },
       {
         property: "og:description",
         content:
@@ -94,6 +94,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { name: "twitter:title", content: "Mandai" },
+      { name: "description", content: "AI Operations Layer for Enterprise HR" },
+      { property: "og:description", content: "AI Operations Layer for Enterprise HR" },
+      { name: "twitter:description", content: "AI Operations Layer for Enterprise HR" },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/9bb709f9-2643-4581-8e0e-f708429cf39d" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/attachments/og-images/9bb709f9-2643-4581-8e0e-f708429cf39d" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
