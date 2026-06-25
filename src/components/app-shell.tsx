@@ -53,7 +53,6 @@ type Profile = { id: string; full_name: string | null; org_id: string };
 type Org = { id: string; name: string };
 
 const NAV = [
-  { to: "/dashboard", label: "Overview", icon: LayoutDashboard },
   { to: "/pipeline", label: "Pipeline", icon: Users },
   { to: "/operations", label: "Operations", icon: Workflow },
   { to: "/financial", label: "Financial", icon: Wallet },
