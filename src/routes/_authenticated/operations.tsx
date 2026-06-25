@@ -310,9 +310,8 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
               <Row label="Salary grade" value={emp.salary_grade ?? "—"} />
             </TabsContent>
             <TabsContent value="performance" className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <Metric label="KPI" value={(kpi?.kpi ?? 0).toFixed(1)} />
-                <Metric label="Productivity" value={(kpi?.productivity ?? 80).toFixed(0)} />
                 <Metric label="Attendance" value={`${(kpi?.attendance ?? 100).toFixed(0)}%`} />
                 <Metric label="Task completion" value={`${(kpi?.task_completion ?? 0).toFixed(0)}%`} />
               </div>
@@ -335,34 +334,8 @@ function EmployeeProfileSheet({ employeeId, onClose }: { employeeId: string | nu
                   </Button>
                 </div>
               </div>
-              <div className="rounded-lg border border-border p-3">
-                <div className="flex items-center gap-1.5 text-xs font-mono uppercase text-muted-foreground">
-                  <span>HR Override · Productivity &amp; Quality</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild><Info className="h-3 w-3 cursor-help opacity-70" /></TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        HR-only manual adjustment that writes directly to the employee's monthly KPI and recomputes payroll. Use sparingly — Team Leader Ratings (in Team Leader Hub) are the primary performance signal.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="mt-1 text-[11px] text-muted-foreground">Writes directly to monthly KPI and triggers payroll recompute. Team Leader ratings live in Team Leader Hub.</div>
-                <div className="mt-3 space-y-3">
-                  <div>
-                    <div className="flex justify-between text-xs"><span>Productivity</span><span className="font-mono">{prod}</span></div>
-                    <Slider value={[prod]} onValueChange={(v) => setProd(v[0])} min={0} max={100} step={1} />
-                  </div>
-                  <div>
-                    <div className="flex justify-between text-xs"><span>Quality</span><span className="font-mono">{qual}</span></div>
-                    <Slider value={[qual]} onValueChange={(v) => setQual(v[0])} min={0} max={100} step={1} />
-                  </div>
-                  <Button size="sm" onClick={() => submitPQ.mutate()} disabled={submitPQ.isPending}>
-                    {submitPQ.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
-                  </Button>
-                </div>
-              </div>
             </TabsContent>
+
             <TabsContent value="tasks" className="space-y-2">
               {(tasks ?? []).map((t) => (
                 <div key={t.id} className="rounded border border-border p-2">
