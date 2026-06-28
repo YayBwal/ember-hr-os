@@ -198,18 +198,26 @@
 
   html {
     font-family: var(--font-sans);
+    font-size: 15.5px;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
-    font-feature-settings: "ss01", "cv11";
+    font-feature-settings: "ss01", "cv11", "ss03";
+    font-variant-ligatures: common-ligatures;
+    letter-spacing: 0.005em;
   }
 
   h1, h2, h3, h4 {
     font-family: var(--font-display);
-    letter-spacing: -0.02em;
+    font-weight: 600;
+    letter-spacing: -0.025em;
   }
+
+  h1 { font-weight: 700; letter-spacing: -0.035em; }
+
 }
